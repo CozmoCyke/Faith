@@ -151,4 +151,4 @@ def test_protocol_load_restore_and_execute_cycle(tmp_path: Path) -> None:
     )
     assert executed_restored.status == "ok"
     assert executed_restored.result is not None
-    assert _stack_values(executed_restored.result) == [4]
+    assert _stack_values(executed_restored.result) == [16, 4]

@@ -13,6 +13,10 @@ venv/
 env/
 .env
 .env.*
+.pytest-tmp/
+.review-phase6/
+.review-phase6-2/
 .tmp-phase6-*/
+phase7-*/
 .idea/
 .vscode/

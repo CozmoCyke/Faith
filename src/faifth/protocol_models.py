@@ -62,7 +62,7 @@ def _serialize(value: Any) -> Any:
         return value.to_dict()
     if isinstance(value, Mapping):
         return {str(key): _serialize(item) for key, item in sorted(value.items())}
-    if isinstance(value, (tuple, list)):
+    if isinstance(value, tuple | list):
         return [_serialize(item) for item in value]
     return value
 
@@ -72,7 +72,7 @@ def _json_depth(value: Any, *, current: int = 0) -> int:
         if not value:
             return current + 1
         return max(_json_depth(item, current=current + 1) for item in value.values())
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         if not value:
             return current + 1
         return max(_json_depth(item, current=current + 1) for item in value)
@@ -366,10 +366,12 @@ class ProtocolSessionState:
     interpreter: Any
     capabilities: CapabilitySet
     default_budget: Any
+    stack: list[Any] = field(default_factory=list)
     repository_ids: tuple[str, ...] = ()
     candidate_sequence: int = 0
     active_versions: dict[str, int] = field(default_factory=dict)
     candidates: dict[str, ProtocolCandidate] = field(default_factory=dict)
+    transaction_snapshot: Any = None
     request_cache: dict[str, tuple[str, ProtocolResponse]] = field(default_factory=dict)
     last_result: Any = None
     last_audit: tuple[ProtocolAuditEvent, ...] = ()

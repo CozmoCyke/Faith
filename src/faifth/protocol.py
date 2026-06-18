@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any, cast
 
 from .budgets import ExecutionBudget
@@ -94,6 +94,14 @@ def _clone_interpreter_session(
 
 def _stack_to_python(stack: Sequence[Any]) -> list[Any]:
     return [value.value for value in stack]
+
+
+@dataclass(slots=True)
+class _TransactionSnapshot:
+    stack: list[Any]
+    active_versions: dict[str, int]
+    candidates: dict[str, ProtocolCandidate]
+    candidate_sequence: int
 
 
 def _trace_mode_value(value: Any) -> TraceMode:
@@ -293,6 +301,7 @@ class FaifthAgentProtocol:
             interpreter=interpreter,
             capabilities=capabilities,
             default_budget=default_budget,
+            stack=[],
             repository_ids=repository_ids,
         )
         self._sessions[request.session_id] = session
@@ -454,7 +463,12 @@ class FaifthAgentProtocol:
                 "Too many tests",
                 context={"limit": self.max_tests_per_request},
             )
-        budget = self._parse_budget(request.arguments.get("budget"))
+        budget_data = request.arguments.get("budget")
+        budget = (
+            session.default_budget
+            if budget_data is None
+            else self._parse_budget(budget_data)
+        )
         exec_caps = self._request_capabilities(session, request)
         temp_session = _clone_interpreter_session(
             session.interpreter,
@@ -607,7 +621,12 @@ class FaifthAgentProtocol:
                 "Inline definitions are disabled",
                 context={"allow_inline_definitions": self.allow_inline_definitions},
             )
-        budget = self._parse_budget(request.arguments.get("budget"))
+        budget_data = request.arguments.get("budget")
+        budget = (
+            session.default_budget
+            if budget_data is None
+            else self._parse_budget(budget_data)
+        )
         exec_caps = self._request_capabilities(session, request)
         target_session = (
             _clone_interpreter_session(
@@ -620,6 +639,7 @@ class FaifthAgentProtocol:
         )
         result = target_session.execute(
             source,
+            initial_stack=session.stack,
             budget=budget,
             capabilities=exec_caps,
         )
@@ -637,12 +657,25 @@ class FaifthAgentProtocol:
             ),
         )
         session.last_audit = audit
-        return ProtocolResponse.success(request=request, result=payload, audit=audit)
+        if result.status == "ok":
+            return ProtocolResponse.success(
+                request=request, result=payload, audit=audit
+            )
+        assert result.error is not None
+        return ProtocolResponse.failure(
+            request=request, error=result.error, audit=audit
+        )
 
     def _begin_transaction(self, request: ProtocolRequest) -> ProtocolResponse:
         session = self._require_session(request.session_id)
         self._require_capabilities(session, CapabilitySet.of("transaction.manage"))
         record = session.interpreter.begin_transaction()
+        session.transaction_snapshot = _TransactionSnapshot(
+            stack=list(session.stack),
+            active_versions=dict(session.active_versions),
+            candidates=dict(session.candidates),
+            candidate_sequence=session.candidate_sequence,
+        )
         audit = (
             ProtocolAuditEvent(
                 "transaction_started",
@@ -664,6 +697,7 @@ class FaifthAgentProtocol:
         session = self._require_session(request.session_id)
         self._require_capabilities(session, CapabilitySet.of("transaction.manage"))
         record = session.interpreter.commit_transaction()
+        session.transaction_snapshot = None
         audit = (
             ProtocolAuditEvent(
                 "transaction_committed",
@@ -688,6 +722,7 @@ class FaifthAgentProtocol:
         record = session.interpreter.rollback_transaction(
             reason=None if reason is None else str(reason)
         )
+        self._restore_transaction_snapshot(session)
         audit = (
             ProtocolAuditEvent(
                 "transaction_rolled_back",
@@ -968,7 +1003,9 @@ class FaifthAgentProtocol:
     def _parse_tests(self, data: Any) -> tuple[ProtocolTestCase, ...]:
         if data is None:
             return ()
-        if not isinstance(data, Sequence) or isinstance(data, (str, bytes, bytearray)):
+        if not isinstance(data, Sequence) or isinstance(
+            data, str | bytes | bytearray
+        ):
             raise InvalidArguments(
                 "tests must be a sequence",
                 context={"received": type(data).__name__},
@@ -1234,6 +1271,10 @@ class FaifthAgentProtocol:
         request_id: str,
     ) -> None:
         session.last_result = result
+        if result.status == "ok":
+            session.stack = list(result.stack)
+        elif result.transaction_rolled_back:
+            self._restore_transaction_snapshot(session)
         session.last_audit = (
             ProtocolAuditEvent(
                 "execution_completed" if result.status == "ok" else "execution_failed",
@@ -1257,14 +1298,8 @@ class FaifthAgentProtocol:
             "capabilities": session.capabilities.to_dict(),
             "default_budget": session.default_budget.to_dict(),
             "user_word_count": len(session.interpreter.dictionary.list_user_words()),
-            "stack": (
-                []
-                if session.last_result is None
-                else _stack_to_python(session.last_result.stack)
-            ),
-            "stack_depth": (
-                0 if session.last_result is None else len(session.last_result.stack)
-            ),
+            "stack": _stack_to_python(session.stack),
+            "stack_depth": len(session.stack),
             "transaction_status": session.interpreter.transaction_status,
             "transaction_active": session.interpreter.transaction_status == "active",
             "repositories": list(session.repository_ids),
@@ -1274,6 +1309,16 @@ class FaifthAgentProtocol:
             "last_audit": [event.to_dict() for event in session.last_audit],
             "active_versions": dict(sorted(session.active_versions.items())),
         }
+
+    def _restore_transaction_snapshot(self, session: ProtocolSessionState) -> None:
+        snapshot = session.transaction_snapshot
+        if snapshot is None:
+            return
+        session.stack = list(snapshot.stack)
+        session.active_versions = dict(snapshot.active_versions)
+        session.candidates = dict(snapshot.candidates)
+        session.candidate_sequence = snapshot.candidate_sequence
+        session.transaction_snapshot = None
 
 
 __all__ = ["FaifthAgentProtocol"]

@@ -49,7 +49,7 @@ def capability_set_from_dict(data: Mapping[str, Any] | None) -> CapabilitySet:
     if data is None:
         return CapabilitySet.none()
     granted = data.get("granted", ())
-    if not isinstance(granted, (list, tuple)):
+    if not isinstance(granted, list | tuple):
         raise InvalidValue(
             "Capability payload must contain a granted list",
             context={"received": type(granted).__name__},

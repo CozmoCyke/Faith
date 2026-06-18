@@ -264,6 +264,7 @@ class InterpreterResult:
 @dataclass(slots=True)
 class _RuntimeState:
     stack: Stack
+    entry_stack: StackSnapshot
     trace: list[TraceEntry]
     steps: int
     peak_stack_depth: int
@@ -460,6 +461,7 @@ class InterpreterSession:
                     initial_stack,
                     max_depth=effective_budget.max_stack_depth,
                 ),
+                entry_stack=StackSnapshot(items=()),
                 trace=[],
                 steps=0,
                 peak_stack_depth=0,
@@ -483,6 +485,7 @@ class InterpreterSession:
                 initial_stack,
                 max_depth=effective_budget.max_stack_depth,
             ),
+            entry_stack=StackSnapshot(items=()),
             trace=[],
             steps=0,
             peak_stack_depth=0,
@@ -491,6 +494,7 @@ class InterpreterSession:
             capabilities=effective_capabilities,
         )
         runtime.peak_stack_depth = runtime.stack.depth()
+        runtime.entry_stack = runtime.stack.snapshot()
         if self._active_transaction is not None:
             runtime.transaction_id = self._active_transaction.record.transaction_id
             runtime.transaction_active = True
@@ -706,7 +710,7 @@ class InterpreterSession:
 
     def _capabilities_from_error(self, error: FaifthError) -> CapabilitySet:
         missing = error.context.get("missing")
-        if isinstance(missing, (list, tuple)):
+        if isinstance(missing, list | tuple):
             return CapabilitySet.of(*tuple(str(item) for item in missing))
         return CapabilitySet.none()
 
@@ -1376,6 +1380,7 @@ class InterpreterSession:
         transaction_id = runtime.transaction_id
         rolled_back = runtime.transaction_rolled_back
         transaction_rollback_reason = runtime.transaction_rollback_reason
+        error_stack = runtime.stack.snapshot()
 
         if self._active_transaction is not None:
             rollback_reason = error.code
@@ -1392,12 +1397,15 @@ class InterpreterSession:
             if self._last_transaction is not None:
                 transaction_id = self._last_transaction.transaction_id
 
+        runtime.stack.restore(runtime.entry_stack)
+        result_stack = Stack(error_stack.items, max_depth=error_stack.max_depth)
+
         if transaction_rolled_back is None:
             transaction_rolled_back = rolled_back
 
         return InterpreterResult.failure(
             error=error,
-            stack=runtime.stack,
+            stack=result_stack,
             trace=runtime.trace,
             steps=runtime.steps,
             metadata={"token_index": token_index},
