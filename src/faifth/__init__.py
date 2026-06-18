@@ -1,14 +1,22 @@
+from .dictionary import Dictionary, UserWord
 from .errors import (
+    CallDepthExceeded,
+    DuplicateWord,
     FaifthError,
     InterpreterError,
+    InvalidDefinition,
     InvalidSnapshot,
     InvalidValue,
+    ProtectedWord,
+    RecursiveDefinition,
     StackOverflow,
     StackUnderflow,
     TypeMismatch,
+    UnexpectedTerminator,
     UnknownWord,
+    UnterminatedDefinition,
 )
-from .interpreter import Interpreter, InterpreterResult, execute
+from .interpreter import Interpreter, InterpreterResult, InterpreterSession, execute
 from .primitives import DEFAULT_PRIMITIVE_MAP, DEFAULT_PRIMITIVES, Primitive
 from .results import ExecutionResult
 from .stack import Stack, StackSnapshot
@@ -25,15 +33,25 @@ from .values import (
 
 __all__ = [
     "FaifthError",
+    "CallDepthExceeded",
+    "DuplicateWord",
     "InterpreterError",
     "InvalidSnapshot",
+    "InvalidDefinition",
     "InvalidValue",
+    "ProtectedWord",
+    "RecursiveDefinition",
     "StackOverflow",
     "StackUnderflow",
+    "UnexpectedTerminator",
+    "UnterminatedDefinition",
     "TypeMismatch",
     "UnknownWord",
     "ExecutionResult",
+    "Dictionary",
+    "UserWord",
     "Interpreter",
+    "InterpreterSession",
     "InterpreterResult",
     "execute",
     "Primitive",

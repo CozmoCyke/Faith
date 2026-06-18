@@ -6,6 +6,7 @@ Current status:
 
 - Phase 0 is complete.
 - Phase 1 is complete: a minimal deterministic interpreter exists.
+- Phase 2 is in progress: user-defined words and an inspectable dictionary are being added.
 - Faifth is not an OS.
 - Faifth is not a full agent framework.
 
@@ -26,6 +27,15 @@ Current status:
 - interpreter execution on top of the Phase 0 stack;
 - structured run results;
 - structured trace entries.
+
+### Phase 2
+
+- inspectable dictionary;
+- user-defined words;
+- `:` / `;` definitions;
+- explicit sessions with local procedural memory;
+- call traces for user words;
+- atomic rollback on failed word execution.
 
 ## Syntax currently supported
 
@@ -53,6 +63,13 @@ Example:
 2 3 + dup *
 ```
 
+Phase 2 definitions:
+
+```text
+: square dup * ;
+5 square
+```
+
 ## Python API
 
 ```python
@@ -62,6 +79,18 @@ result = execute("2 3 + dup *")
 print(result.status)
 print(result.stack)
 print(result.trace)
+```
+
+For Phase 2, use an explicit session when you want words to persist:
+
+```python
+from faifth import InterpreterSession
+
+session = InterpreterSession()
+session.execute(": square dup * ;")
+result = session.execute("5 square")
+print(result.stack)
+print(session.dictionary.inspect("square"))
 ```
 
 The returned object contains:
@@ -104,9 +133,6 @@ python -m compileall src
 Not yet implemented:
 
 - tokenizer comments or strings;
-- user-defined words;
-- dictionary;
-- `:` / `;` definitions;
 - contracts;
 - capabilities;
 - budgets;
@@ -127,3 +153,11 @@ Not yet implemented:
 - transactions;
 - persistence;
 - AI protocol.
+
+## Phase 2 limitations
+
+- recursion is still forbidden;
+- redefining primitives is forbidden;
+- redefining existing user words is forbidden;
+- persistence is still in memory only;
+- the procedural memory is minimal and experimental.

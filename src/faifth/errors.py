@@ -127,6 +127,41 @@ class UnknownWord(FaifthError):
         )
 
 
+class InvalidDefinition(FaifthError):
+    default_code = "faifth.invalid_definition"
+    default_message = "Invalid definition"
+
+
+class DuplicateWord(FaifthError):
+    default_code = "faifth.duplicate_word"
+    default_message = "Duplicate word"
+
+
+class ProtectedWord(FaifthError):
+    default_code = "faifth.protected_word"
+    default_message = "Protected word"
+
+
+class UnterminatedDefinition(FaifthError):
+    default_code = "faifth.unterminated_definition"
+    default_message = "Unterminated definition"
+
+
+class UnexpectedTerminator(FaifthError):
+    default_code = "faifth.unexpected_terminator"
+    default_message = "Unexpected terminator"
+
+
+class RecursiveDefinition(FaifthError):
+    default_code = "faifth.recursive_definition"
+    default_message = "Recursive definition"
+
+
+class CallDepthExceeded(FaifthError):
+    default_code = "faifth.call_depth_exceeded"
+    default_message = "Call depth exceeded"
+
+
 class InterpreterError(FaifthError):
     default_code = "faifth.interpreter_error"
     default_message = "Interpreter error"
@@ -140,5 +175,12 @@ __all__ = [
     "InvalidValue",
     "InvalidSnapshot",
     "UnknownWord",
+    "InvalidDefinition",
+    "DuplicateWord",
+    "ProtectedWord",
+    "UnterminatedDefinition",
+    "UnexpectedTerminator",
+    "RecursiveDefinition",
+    "CallDepthExceeded",
     "InterpreterError",
 ]

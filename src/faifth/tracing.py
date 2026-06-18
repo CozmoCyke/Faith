@@ -6,7 +6,7 @@ from typing import Any, Literal
 from .errors import FaifthError
 from .stack import StackSnapshot
 
-TraceKind = Literal["literal", "primitive", "error"]
+TraceKind = Literal["literal", "primitive", "definition", "call", "return", "error"]
 TraceStatus = Literal["ok", "error"]
 
 
@@ -19,6 +19,7 @@ class TraceEntry:
     stack_after: StackSnapshot
     status: TraceStatus
     error: FaifthError | None = None
+    depth: int | None = None
     line: int | None = None
     column: int | None = None
     offset: int | None = None
@@ -38,6 +39,7 @@ class TraceEntry:
             "stack_after": self.stack_after.to_dict(),
             "status": self.status,
             "error": None if self.error is None else self.error.to_dict(),
+            "depth": self.depth,
             "line": self.line,
             "column": self.column,
             "offset": self.offset,
