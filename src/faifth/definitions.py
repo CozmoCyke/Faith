@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from .contracts import StackContract, parse_stack_contract
 from .errors import InvalidDefinition, UnterminatedDefinition
 from .tokenizer import Token
 
@@ -12,6 +13,7 @@ from .tokenizer import Token
 class ParsedDefinition:
     name: str
     name_token: Token
+    contract: StackContract | None
     body_tokens: tuple[Token, ...]
     start_index: int
     end_index: int
@@ -20,6 +22,7 @@ class ParsedDefinition:
         return {
             "name": self.name,
             "name_token": self.name_token.to_dict(),
+            "contract": None if self.contract is None else self.contract.to_dict(),
             "body_tokens": [token.to_dict() for token in self.body_tokens],
             "start_index": self.start_index,
             "end_index": self.end_index,
@@ -46,14 +49,18 @@ class DefinitionParser:
             )
 
         name_token = tokens[start_index + 1]
-        if name_token.text in {":", ";"}:
+        if name_token.text in {":", ";", "(", ")"}:
             raise InvalidDefinition(
                 "Definition name is invalid",
                 context={"name": name_token.text, "index": name_token.index},
             )
 
-        body_tokens: list[Token] = []
         index = start_index + 2
+        contract: StackContract | None = None
+        if index < len(tokens) and tokens[index].text == "(":
+            contract, index = parse_stack_contract(tokens, index)
+
+        body_tokens: list[Token] = []
         while index < len(tokens):
             token = tokens[index]
             if token.text == ";":
@@ -65,6 +72,7 @@ class DefinitionParser:
                 return ParsedDefinition(
                     name=name_token.text,
                     name_token=name_token,
+                    contract=contract,
                     body_tokens=tuple(body_tokens),
                     start_index=start_index,
                     end_index=index + 1,
@@ -72,10 +80,7 @@ class DefinitionParser:
             if token.text == ":":
                 raise InvalidDefinition(
                     "Nested definitions are not allowed",
-                    context={
-                        "name": name_token.text,
-                        "index": token.index,
-                    },
+                    context={"name": name_token.text, "index": token.index},
                 )
             body_tokens.append(token)
             index += 1

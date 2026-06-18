@@ -99,6 +99,66 @@ class InvalidSnapshot(FaifthError):
     default_message = "Invalid snapshot"
 
 
+class InvalidContract(FaifthError):
+    default_code = "faifth.invalid_contract"
+    default_message = "Invalid contract"
+
+
+class MalformedContract(FaifthError):
+    default_code = "faifth.malformed_contract"
+    default_message = "Malformed contract"
+
+
+class UnknownContractType(FaifthError):
+    default_code = "faifth.unknown_contract_type"
+    default_message = "Unknown contract type"
+
+
+class ContractInputMismatch(TypeMismatch):
+    default_code = "faifth.contract_input_mismatch"
+    default_message = "Contract input mismatch"
+
+
+class ContractOutputMismatch(TypeMismatch):
+    default_code = "faifth.contract_output_mismatch"
+    default_message = "Contract output mismatch"
+
+
+class ContractDepthMismatch(StackUnderflow):
+    default_code = "faifth.contract_depth_mismatch"
+    default_message = "Contract depth mismatch"
+
+
+class UnverifiableContract(FaifthError):
+    default_code = "faifth.unverifiable_contract"
+    default_message = "Unverifiable contract"
+
+
+class StaticContractViolation(FaifthError):
+    default_code = "faifth.static_contract_violation"
+    default_message = "Static contract violation"
+
+
+class InvalidBudget(FaifthError):
+    default_code = "faifth.invalid_budget"
+    default_message = "Invalid budget"
+
+
+class BudgetExceeded(FaifthError):
+    default_code = "faifth.budget_exceeded"
+    default_message = "Budget exceeded"
+
+
+class StepBudgetExceeded(BudgetExceeded):
+    default_code = "faifth.step_budget_exceeded"
+    default_message = "Step budget exceeded"
+
+
+class StackDepthBudgetExceeded(BudgetExceeded):
+    default_code = "faifth.stack_depth_budget_exceeded"
+    default_message = "Stack depth budget exceeded"
+
+
 class UnknownWord(FaifthError):
     default_code = "faifth.unknown_word"
     default_message = "Unknown word"
@@ -157,7 +217,7 @@ class RecursiveDefinition(FaifthError):
     default_message = "Recursive definition"
 
 
-class CallDepthExceeded(FaifthError):
+class CallDepthExceeded(BudgetExceeded):
     default_code = "faifth.call_depth_exceeded"
     default_message = "Call depth exceeded"
 
@@ -174,6 +234,18 @@ __all__ = [
     "TypeMismatch",
     "InvalidValue",
     "InvalidSnapshot",
+    "InvalidContract",
+    "MalformedContract",
+    "UnknownContractType",
+    "ContractInputMismatch",
+    "ContractOutputMismatch",
+    "ContractDepthMismatch",
+    "UnverifiableContract",
+    "StaticContractViolation",
+    "InvalidBudget",
+    "BudgetExceeded",
+    "StepBudgetExceeded",
+    "StackDepthBudgetExceeded",
     "UnknownWord",
     "InvalidDefinition",
     "DuplicateWord",
