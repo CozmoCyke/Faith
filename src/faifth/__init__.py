@@ -10,6 +10,7 @@ from .errors import (
     ContractDepthMismatch,
     ContractInputMismatch,
     ContractOutputMismatch,
+    CorruptWordVersion,
     DuplicateWord,
     FaifthError,
     InterpreterError,
@@ -28,6 +29,7 @@ from .errors import (
     StackUnderflow,
     StaticContractViolation,
     StepBudgetExceeded,
+    StoragePermissionDenied,
     TransactionAlreadyActive,
     TransactionCommitError,
     TransactionRollbackError,
@@ -39,6 +41,14 @@ from .errors import (
     UnverifiableContract,
 )
 from .interpreter import Interpreter, InterpreterResult, InterpreterSession, execute
+from .persistence import (
+    DictionaryRepository,
+    LoadResult,
+    PersistenceAuditEvent,
+    PersistenceResult,
+    RestoreResult,
+    SaveResult,
+)
 from .primitives import DEFAULT_PRIMITIVE_MAP, DEFAULT_PRIMITIVES, Primitive
 from .results import ExecutionResult
 from .stack import Stack, StackSnapshot
@@ -53,6 +63,7 @@ from .values import (
     ensure_value,
     is_value,
 )
+from .versioning import WordVersion, canonical_json
 
 __all__ = [
     "FaifthError",
@@ -60,6 +71,7 @@ __all__ = [
     "CallDepthExceeded",
     "CapabilityDenied",
     "CapabilityEscalationDenied",
+    "CorruptWordVersion",
     "StepBudgetExceeded",
     "StackDepthBudgetExceeded",
     "DuplicateWord",
@@ -89,9 +101,18 @@ __all__ = [
     "TransactionAlreadyActive",
     "TransactionCommitError",
     "TransactionRollbackError",
+    "StoragePermissionDenied",
     "ExecutionResult",
     "Dictionary",
     "UserWord",
+    "DictionaryRepository",
+    "PersistenceAuditEvent",
+    "PersistenceResult",
+    "SaveResult",
+    "LoadResult",
+    "RestoreResult",
+    "WordVersion",
+    "canonical_json",
     "Capability",
     "CapabilitySet",
     "ExecutionBudget",

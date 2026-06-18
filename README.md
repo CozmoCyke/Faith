@@ -8,7 +8,8 @@ Current status:
 - Phase 1 is complete: a minimal deterministic interpreter exists.
 - Phase 2 is complete: user-defined words and an inspectable dictionary exist.
 - Phase 3 is complete: stack contracts and deterministic execution budgets exist.
-- Phase 4 is in progress: capabilities, permissions, and transactions are being added.
+- Phase 4 is complete: capabilities, permissions, and transactions exist.
+- Phase 5 is complete: persistence, versioning, and restoration exist.
 - Faifth is not an OS.
 - Faifth is not a full agent framework.
 
@@ -54,6 +55,15 @@ Current status:
 - explicit transactions on internal state;
 - automatic rollback on failure;
 - transaction audit records.
+
+### Phase 5
+
+- persistent dictionary storage in SQLite;
+- versioned user words;
+- active-version pointers for live sessions;
+- explicit load and restore operations;
+- storage permissions for read, write, and restore flows;
+- corruption checks on persisted word versions.
 
 ## Capability profiles
 
@@ -211,9 +221,6 @@ python -m compileall src
 Not yet implemented:
 
 - tokenizer comments or strings;
-- capabilities;
-- transactions;
-- persistence;
 - AI protocol;
 - CLI;
 - host filesystem or network access;
@@ -226,7 +233,6 @@ Not yet implemented:
 - user definitions;
 - capabilities;
 - transactions;
-- persistence;
 - AI protocol.
 
 ## Deferred to Phase 3 or later
@@ -235,7 +241,6 @@ Not yet implemented:
 - generic type variables;
 - capability enforcement;
 - transactions;
-- persistence;
 - AI protocol;
 - concurrency;
 - branching and looping.
@@ -253,5 +258,12 @@ Not yet implemented:
 - contracts are intentionally minimal (`int`, `bool`, `any`);
 - budgets are deterministic counters, not wall-clock timers;
 - contractless words remain usable but are not contract-verified;
-- persistence is still in memory only;
 - no branching, looping, or recursion has been added.
+
+## Phase 5 limitations
+
+- persistence is limited to the explicit repository API;
+- live sessions still remain explicit and isolated;
+- load and restore are deterministic but intentionally conservative;
+- no free-form filesystem or network access is exposed by default;
+- the runtime remains a language plus repository, not an OS.

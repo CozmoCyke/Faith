@@ -262,6 +262,56 @@ class TransactionRollbackError(FaifthError):
     default_message = "Transaction rollback error"
 
 
+class PersistenceError(FaifthError):
+    default_code = "faifth.persistence_error"
+    default_message = "Persistence error"
+
+
+class StoragePermissionDenied(PersistenceError):
+    default_code = "faifth.storage_permission_denied"
+    default_message = "Storage permission denied"
+
+
+class StorageIntegrityError(PersistenceError):
+    default_code = "faifth.storage_integrity_error"
+    default_message = "Storage integrity error"
+
+
+class UnsupportedSchemaVersion(PersistenceError):
+    default_code = "faifth.unsupported_schema_version"
+    default_message = "Unsupported schema version"
+
+
+class CorruptWordVersion(PersistenceError):
+    default_code = "faifth.corrupt_word_version"
+    default_message = "Corrupt word version"
+
+
+class MissingWordVersion(PersistenceError):
+    default_code = "faifth.missing_word_version"
+    default_message = "Missing word version"
+
+
+class MissingDependency(PersistenceError):
+    default_code = "faifth.missing_dependency"
+    default_message = "Missing dependency"
+
+
+class DependencyCycle(PersistenceError):
+    default_code = "faifth.dependency_cycle"
+    default_message = "Dependency cycle"
+
+
+class RestoreValidationError(PersistenceError):
+    default_code = "faifth.restore_validation_error"
+    default_message = "Restore validation error"
+
+
+class ActiveVersionError(PersistenceError):
+    default_code = "faifth.active_version_error"
+    default_message = "Active version error"
+
+
 __all__ = [
     "FaifthError",
     "StackUnderflow",
@@ -297,4 +347,14 @@ __all__ = [
     "NoActiveTransaction",
     "TransactionCommitError",
     "TransactionRollbackError",
+    "PersistenceError",
+    "StoragePermissionDenied",
+    "StorageIntegrityError",
+    "UnsupportedSchemaVersion",
+    "CorruptWordVersion",
+    "MissingWordVersion",
+    "MissingDependency",
+    "DependencyCycle",
+    "RestoreValidationError",
+    "ActiveVersionError",
 ]

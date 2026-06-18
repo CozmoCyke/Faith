@@ -337,6 +337,16 @@ class InterpreterSession:
     def dictionary(self) -> Dictionary:
         return self._dictionary
 
+    def activate_dictionary(self, dictionary: Dictionary) -> None:
+        if self._active_transaction is not None:
+            raise TransactionAlreadyActive(
+                "Cannot replace dictionary during an active transaction",
+                context={
+                    "transaction_id": self._active_transaction.record.transaction_id,
+                },
+            )
+        self._dictionary = dictionary
+
     @property
     def default_budget(self) -> ExecutionBudget:
         return self._default_budget
