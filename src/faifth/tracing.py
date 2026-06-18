@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from .capabilities import CapabilitySet
 from .errors import FaifthError
 from .stack import StackSnapshot
 
@@ -23,6 +24,11 @@ class TraceEntry:
     line: int | None = None
     column: int | None = None
     offset: int | None = None
+    required_capabilities: CapabilitySet | None = None
+    granted_capabilities: CapabilitySet | None = None
+    missing_capabilities: CapabilitySet | None = None
+    permission_status: str | None = None
+    transaction_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.status == "ok" and self.error is not None:
@@ -43,6 +49,23 @@ class TraceEntry:
             "line": self.line,
             "column": self.column,
             "offset": self.offset,
+            "required_capabilities": (
+                None
+                if self.required_capabilities is None
+                else self.required_capabilities.to_dict()
+            ),
+            "granted_capabilities": (
+                None
+                if self.granted_capabilities is None
+                else self.granted_capabilities.to_dict()
+            ),
+            "missing_capabilities": (
+                None
+                if self.missing_capabilities is None
+                else self.missing_capabilities.to_dict()
+            ),
+            "permission_status": self.permission_status,
+            "transaction_id": self.transaction_id,
         }
 
 

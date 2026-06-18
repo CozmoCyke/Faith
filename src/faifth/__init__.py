@@ -1,9 +1,12 @@
 from .budgets import BudgetUsage, ExecutionBudget
+from .capabilities import Capability, CapabilitySet
 from .contracts import StackContract, ValueKind
 from .dictionary import Dictionary, UserWord
 from .errors import (
     BudgetExceeded,
     CallDepthExceeded,
+    CapabilityDenied,
+    CapabilityEscalationDenied,
     ContractDepthMismatch,
     ContractInputMismatch,
     ContractOutputMismatch,
@@ -11,11 +14,13 @@ from .errors import (
     FaifthError,
     InterpreterError,
     InvalidBudget,
+    InvalidCapability,
     InvalidContract,
     InvalidDefinition,
     InvalidSnapshot,
     InvalidValue,
     MalformedContract,
+    NoActiveTransaction,
     ProtectedWord,
     RecursiveDefinition,
     StackDepthBudgetExceeded,
@@ -23,6 +28,9 @@ from .errors import (
     StackUnderflow,
     StaticContractViolation,
     StepBudgetExceeded,
+    TransactionAlreadyActive,
+    TransactionCommitError,
+    TransactionRollbackError,
     TypeMismatch,
     UnexpectedTerminator,
     UnknownContractType,
@@ -35,6 +43,7 @@ from .primitives import DEFAULT_PRIMITIVE_MAP, DEFAULT_PRIMITIVES, Primitive
 from .results import ExecutionResult
 from .stack import Stack, StackSnapshot
 from .tokenizer import Token, Tokenizer, tokenize
+from .transactions import TransactionRecord
 from .values import (
     BoolValue,
     IntValue,
@@ -49,16 +58,20 @@ __all__ = [
     "FaifthError",
     "BudgetExceeded",
     "CallDepthExceeded",
+    "CapabilityDenied",
+    "CapabilityEscalationDenied",
     "StepBudgetExceeded",
     "StackDepthBudgetExceeded",
     "DuplicateWord",
     "InterpreterError",
     "InvalidBudget",
+    "InvalidCapability",
     "InvalidSnapshot",
     "InvalidDefinition",
     "InvalidContract",
     "InvalidValue",
     "MalformedContract",
+    "NoActiveTransaction",
     "ProtectedWord",
     "RecursiveDefinition",
     "StackOverflow",
@@ -73,9 +86,14 @@ __all__ = [
     "ContractDepthMismatch",
     "ContractInputMismatch",
     "ContractOutputMismatch",
+    "TransactionAlreadyActive",
+    "TransactionCommitError",
+    "TransactionRollbackError",
     "ExecutionResult",
     "Dictionary",
     "UserWord",
+    "Capability",
+    "CapabilitySet",
     "ExecutionBudget",
     "BudgetUsage",
     "StackContract",
@@ -87,6 +105,7 @@ __all__ = [
     "Primitive",
     "DEFAULT_PRIMITIVE_MAP",
     "DEFAULT_PRIMITIVES",
+    "TransactionRecord",
     "Stack",
     "StackSnapshot",
     "Token",

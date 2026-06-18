@@ -6,8 +6,9 @@ Current status:
 
 - Phase 0 is complete.
 - Phase 1 is complete: a minimal deterministic interpreter exists.
-- Phase 2 is in progress: user-defined words and an inspectable dictionary are being added.
-- Phase 3 is in progress: stack contracts and deterministic execution budgets are being added.
+- Phase 2 is complete: user-defined words and an inspectable dictionary exist.
+- Phase 3 is complete: stack contracts and deterministic execution budgets exist.
+- Phase 4 is in progress: capabilities, permissions, and transactions are being added.
 - Faifth is not an OS.
 - Faifth is not a full agent framework.
 
@@ -44,6 +45,53 @@ Current status:
 - optional contract annotations after the word name;
 - dynamic input and output verification;
 - deterministic execution budgets;
+
+### Phase 4
+
+- immutable capability identifiers and sets;
+- capability-gated primitives and user words;
+- session permissions with execution-time restriction;
+- explicit transactions on internal state;
+- automatic rollback on failure;
+- transaction audit records.
+
+## Capability profiles
+
+Faifth keeps a compatibility profile for the current prototype so the historical examples continue to run:
+
+- `CapabilitySet.development_defaults()` for the current prototype profile;
+- `CapabilitySet.strict_defaults()` for an empty capability set.
+
+The default `InterpreterSession()` uses the compatibility profile so the existing phases remain runnable without boilerplate. For strict experiments, pass an explicit `CapabilitySet`.
+
+## Example usage
+
+```python
+from faifth import CapabilitySet, InterpreterSession
+
+session = InterpreterSession(
+    capabilities=CapabilitySet.of("core.compute", "core.stack")
+)
+
+result = session.execute("2 3 +")
+```
+
+To allow definitions and transactions:
+
+```python
+session = InterpreterSession(
+    capabilities=CapabilitySet.of(
+        "core.compute",
+        "core.stack",
+        "dictionary.define",
+        "transaction.manage",
+    )
+)
+
+session.begin_transaction()
+session.execute(": square ( int -- int ) dup * ;")
+session.commit_transaction()
+```
 - observable step, stack, and call-depth usage.
 
 ## Syntax currently supported

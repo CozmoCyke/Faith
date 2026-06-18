@@ -144,6 +144,11 @@ class InvalidBudget(FaifthError):
     default_message = "Invalid budget"
 
 
+class InvalidCapability(FaifthError):
+    default_code = "faifth.invalid_capability"
+    default_message = "Invalid capability"
+
+
 class BudgetExceeded(FaifthError):
     default_code = "faifth.budget_exceeded"
     default_message = "Budget exceeded"
@@ -222,9 +227,39 @@ class CallDepthExceeded(BudgetExceeded):
     default_message = "Call depth exceeded"
 
 
+class CapabilityDenied(FaifthError):
+    default_code = "faifth.capability_denied"
+    default_message = "Capability denied"
+
+
+class CapabilityEscalationDenied(FaifthError):
+    default_code = "faifth.capability_escalation_denied"
+    default_message = "Capability escalation denied"
+
+
 class InterpreterError(FaifthError):
     default_code = "faifth.interpreter_error"
     default_message = "Interpreter error"
+
+
+class TransactionAlreadyActive(FaifthError):
+    default_code = "faifth.transaction_already_active"
+    default_message = "Transaction already active"
+
+
+class NoActiveTransaction(FaifthError):
+    default_code = "faifth.no_active_transaction"
+    default_message = "No active transaction"
+
+
+class TransactionCommitError(FaifthError):
+    default_code = "faifth.transaction_commit_error"
+    default_message = "Transaction commit error"
+
+
+class TransactionRollbackError(FaifthError):
+    default_code = "faifth.transaction_rollback_error"
+    default_message = "Transaction rollback error"
 
 
 __all__ = [
@@ -243,10 +278,13 @@ __all__ = [
     "UnverifiableContract",
     "StaticContractViolation",
     "InvalidBudget",
+    "InvalidCapability",
     "BudgetExceeded",
     "StepBudgetExceeded",
     "StackDepthBudgetExceeded",
     "UnknownWord",
+    "CapabilityDenied",
+    "CapabilityEscalationDenied",
     "InvalidDefinition",
     "DuplicateWord",
     "ProtectedWord",
@@ -255,4 +293,8 @@ __all__ = [
     "RecursiveDefinition",
     "CallDepthExceeded",
     "InterpreterError",
+    "TransactionAlreadyActive",
+    "NoActiveTransaction",
+    "TransactionCommitError",
+    "TransactionRollbackError",
 ]

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 from typing import Any, Literal
 
 from .budgets import BudgetUsage, ExecutionBudget
+from .capabilities import CapabilitySet
 from .contracts import (
     StackContract,
     ValueKind,
@@ -16,13 +17,17 @@ from .definitions import ParsedDefinition, parse_definition
 from .dictionary import Dictionary, UserWord
 from .errors import (
     CallDepthExceeded,
+    CapabilityDenied,
+    CapabilityEscalationDenied,
     ContractDepthMismatch,
     ContractInputMismatch,
     ContractOutputMismatch,
     FaifthError,
     InterpreterError,
+    NoActiveTransaction,
     StackDepthBudgetExceeded,
     StepBudgetExceeded,
+    TransactionAlreadyActive,
     UnexpectedTerminator,
     UnknownWord,
 )
@@ -30,6 +35,7 @@ from .primitives import DEFAULT_PRIMITIVE_MAP, Primitive
 from .stack import Stack, StackOverflow, StackSnapshot
 from .tokenizer import Token, Tokenizer
 from .tracing import TraceEntry
+from .transactions import TransactionRecord
 from .values import BoolValue, IntValue, StrValue, SymbolValue, Value
 
 ResultStatus = Literal["ok", "error"]
@@ -92,6 +98,14 @@ class InterpreterResult:
     steps: int = 0
     budget: ExecutionBudget | None = None
     usage: BudgetUsage = field(default_factory=BudgetUsage)
+    capabilities: CapabilitySet = field(default_factory=CapabilitySet.none)
+    used_capabilities: CapabilitySet = field(default_factory=CapabilitySet.none)
+    missing_capabilities: CapabilitySet = field(default_factory=CapabilitySet.none)
+    transaction_id: str | None = None
+    transaction_status: str | None = None
+    transaction_active: bool = False
+    transaction_rolled_back: bool = False
+    transaction_rollback_reason: str | None = None
 
     def __post_init__(self) -> None:
         if self.status not in {"ok", "error"}:
@@ -114,6 +128,12 @@ class InterpreterResult:
             raise TypeError("budget must be an ExecutionBudget or None")
         if not isinstance(self.usage, BudgetUsage):
             raise TypeError("usage must be a BudgetUsage")
+        if not isinstance(self.capabilities, CapabilitySet):
+            raise TypeError("capabilities must be a CapabilitySet")
+        if not isinstance(self.used_capabilities, CapabilitySet):
+            raise TypeError("used_capabilities must be a CapabilitySet")
+        if not isinstance(self.missing_capabilities, CapabilitySet):
+            raise TypeError("missing_capabilities must be a CapabilitySet")
         object.__setattr__(
             self,
             "metadata",
@@ -130,6 +150,14 @@ class InterpreterResult:
         metadata: Mapping[str, Any] | None = None,
         budget: ExecutionBudget | None = None,
         usage: BudgetUsage | None = None,
+        capabilities: CapabilitySet | None = None,
+        used_capabilities: CapabilitySet | None = None,
+        missing_capabilities: CapabilitySet | None = None,
+        transaction_id: str | None = None,
+        transaction_status: str | None = None,
+        transaction_active: bool = False,
+        transaction_rolled_back: bool = False,
+        transaction_rollback_reason: str | None = None,
     ) -> InterpreterResult:
         stack_values = tuple(stack)
         return cls(
@@ -141,6 +169,24 @@ class InterpreterResult:
             steps=steps,
             budget=budget,
             usage=usage if usage is not None else BudgetUsage(steps_used=steps),
+            capabilities=capabilities
+            if capabilities is not None
+            else CapabilitySet.none(),
+            used_capabilities=(
+                used_capabilities
+                if used_capabilities is not None
+                else CapabilitySet.none()
+            ),
+            missing_capabilities=(
+                missing_capabilities
+                if missing_capabilities is not None
+                else CapabilitySet.none()
+            ),
+            transaction_id=transaction_id,
+            transaction_status=transaction_status,
+            transaction_active=transaction_active,
+            transaction_rolled_back=transaction_rolled_back,
+            transaction_rollback_reason=transaction_rollback_reason,
         )
 
     @classmethod
@@ -154,6 +200,14 @@ class InterpreterResult:
         metadata: Mapping[str, Any] | None = None,
         budget: ExecutionBudget | None = None,
         usage: BudgetUsage | None = None,
+        capabilities: CapabilitySet | None = None,
+        used_capabilities: CapabilitySet | None = None,
+        missing_capabilities: CapabilitySet | None = None,
+        transaction_id: str | None = None,
+        transaction_status: str | None = None,
+        transaction_active: bool = False,
+        transaction_rolled_back: bool = False,
+        transaction_rollback_reason: str | None = None,
     ) -> InterpreterResult:
         stack_values = tuple(stack)
         return cls(
@@ -165,6 +219,24 @@ class InterpreterResult:
             steps=steps,
             budget=budget,
             usage=usage if usage is not None else BudgetUsage(steps_used=steps),
+            capabilities=capabilities
+            if capabilities is not None
+            else CapabilitySet.none(),
+            used_capabilities=(
+                used_capabilities
+                if used_capabilities is not None
+                else CapabilitySet.none()
+            ),
+            missing_capabilities=(
+                missing_capabilities
+                if missing_capabilities is not None
+                else CapabilitySet.none()
+            ),
+            transaction_id=transaction_id,
+            transaction_status=transaction_status,
+            transaction_active=transaction_active,
+            transaction_rolled_back=transaction_rolled_back,
+            transaction_rollback_reason=transaction_rollback_reason,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -178,6 +250,14 @@ class InterpreterResult:
             "steps": self.steps,
             "budget": None if self.budget is None else self.budget.to_dict(),
             "usage": self.usage.to_dict(),
+            "capabilities": self.capabilities.to_dict(),
+            "used_capabilities": self.used_capabilities.to_dict(),
+            "missing_capabilities": self.missing_capabilities.to_dict(),
+            "transaction_id": self.transaction_id,
+            "transaction_status": self.transaction_status,
+            "transaction_active": self.transaction_active,
+            "transaction_rolled_back": self.transaction_rolled_back,
+            "transaction_rollback_reason": self.transaction_rollback_reason,
         }
 
 
@@ -189,7 +269,13 @@ class _RuntimeState:
     peak_stack_depth: int
     peak_call_depth: int
     budget: ExecutionBudget
+    capabilities: CapabilitySet
     limit_hit: str | None = None
+    used_capabilities: CapabilitySet = field(default_factory=CapabilitySet.none)
+    transaction_id: str | None = None
+    transaction_active: bool = False
+    transaction_rolled_back: bool = False
+    transaction_rollback_reason: str | None = None
 
     @property
     def usage(self) -> BudgetUsage:
@@ -201,6 +287,13 @@ class _RuntimeState:
         )
 
 
+@dataclass(slots=True)
+class _TransactionState:
+    record: TransactionRecord
+    user_words_snapshot: tuple[tuple[str, UserWord], ...]
+    sequence: int
+
+
 class InterpreterSession:
     def __init__(
         self,
@@ -210,6 +303,7 @@ class InterpreterSession:
         dictionary: Dictionary | None = None,
         default_budget: ExecutionBudget | None = None,
         max_call_depth: int = 64,
+        capabilities: CapabilitySet | None = None,
     ) -> None:
         self._tokenizer = tokenizer if tokenizer is not None else Tokenizer()
         self._dictionary = (
@@ -226,6 +320,14 @@ class InterpreterSession:
             if default_budget is not None
             else ExecutionBudget(max_call_depth=max_call_depth)
         )
+        self._capabilities = (
+            capabilities
+            if capabilities is not None
+            else CapabilitySet.development_defaults()
+        )
+        self._active_transaction: _TransactionState | None = None
+        self._last_transaction: TransactionRecord | None = None
+        self._transaction_sequence = 0
 
     @property
     def primitives(self) -> Mapping[str, Primitive]:
@@ -239,14 +341,133 @@ class InterpreterSession:
     def default_budget(self) -> ExecutionBudget:
         return self._default_budget
 
+    @property
+    def capabilities(self) -> CapabilitySet:
+        return self._capabilities
+
+    @property
+    def transaction_status(self) -> str | None:
+        if self._active_transaction is not None:
+            return self._active_transaction.record.status
+        if self._last_transaction is not None:
+            return self._last_transaction.status
+        return None
+
+    @property
+    def last_transaction(self) -> TransactionRecord | None:
+        return self._last_transaction
+
+    def inspect_word(self, name: str) -> dict[str, Any]:
+        self._require_session_capabilities(CapabilitySet.of("introspection.read"))
+        return self._dictionary.inspect(name)
+
+    def list_words(self) -> tuple[str, ...]:
+        self._require_session_capabilities(CapabilitySet.of("dictionary.read"))
+        return self._dictionary.list_words()
+
+    def list_user_words(self) -> tuple[str, ...]:
+        self._require_session_capabilities(CapabilitySet.of("dictionary.read"))
+        return self._dictionary.list_user_words()
+
+    def begin_transaction(self) -> TransactionRecord:
+        self._require_session_capabilities(CapabilitySet.of("transaction.manage"))
+        if self._active_transaction is not None:
+            raise TransactionAlreadyActive(
+                "Transaction already active",
+                context={
+                    "transaction_id": self._active_transaction.record.transaction_id,
+                    "status": self._active_transaction.record.status,
+                },
+            )
+        self._transaction_sequence += 1
+        transaction_id = f"tx-{self._transaction_sequence}"
+        record = TransactionRecord(
+            transaction_id=transaction_id,
+            status="active",
+            started_sequence=self._transaction_sequence,
+            granted_capabilities=self._capabilities,
+        )
+        self._active_transaction = _TransactionState(
+            record=record,
+            user_words_snapshot=self._dictionary.snapshot_user_words(),
+            sequence=self._transaction_sequence,
+        )
+        self._last_transaction = record
+        return record
+
+    def commit_transaction(self) -> TransactionRecord:
+        self._require_session_capabilities(CapabilitySet.of("transaction.manage"))
+        if self._active_transaction is None:
+            raise NoActiveTransaction(
+                "No active transaction",
+                context={"operation": "commit"},
+            )
+        active = self._active_transaction
+        current_words = tuple(self._dictionary.list_user_words())
+        snapshot_words = tuple(name for name, _ in active.user_words_snapshot)
+        words_added = tuple(
+            name for name in current_words if name not in snapshot_words
+        )
+        words_removed = tuple(
+            name for name in snapshot_words if name not in current_words
+        )
+        record = replace(
+            active.record,
+            status="committed",
+            committed=True,
+            ended_sequence=self._transaction_sequence,
+            words_added=words_added,
+            words_removed=words_removed,
+        )
+        self._active_transaction = None
+        self._last_transaction = record
+        return record
+
+    def rollback_transaction(
+        self,
+        *,
+        reason: str | None = None,
+        error: FaifthError | None = None,
+    ) -> TransactionRecord:
+        self._require_session_capabilities(CapabilitySet.of("transaction.manage"))
+        return self._rollback_active_transaction(reason=reason or "manual", error=error)
+
     def execute(
         self,
         source: str,
         *,
         initial_stack: Stack | Iterable[Value] | None = None,
         budget: ExecutionBudget | None = None,
+        capabilities: CapabilitySet | None = None,
     ) -> InterpreterResult:
         effective_budget = budget if budget is not None else self._default_budget
+        effective_capabilities, escalation_error = self._resolve_execution_capabilities(
+            capabilities
+        )
+        if escalation_error is not None:
+            runtime = _RuntimeState(
+                stack=_clone_stack(
+                    initial_stack,
+                    max_depth=effective_budget.max_stack_depth,
+                ),
+                trace=[],
+                steps=0,
+                peak_stack_depth=0,
+                peak_call_depth=0,
+                budget=effective_budget,
+                capabilities=self._capabilities,
+            )
+            runtime.peak_stack_depth = runtime.stack.depth()
+            return self._fail(
+                runtime,
+                escalation_error,
+                Token(text="", index=0, offset=0, line=1, column=1),
+                token_index=0,
+                capabilities=self._capabilities,
+                missing_capabilities=CapabilitySet.none(),
+                transaction_status=self.transaction_status,
+                transaction_active=self._active_transaction is not None,
+            )
         runtime = _RuntimeState(
             stack=_clone_stack(
                 initial_stack,
@@ -257,8 +478,12 @@ class InterpreterSession:
             peak_stack_depth=0,
             peak_call_depth=0,
             budget=effective_budget,
+            capabilities=effective_capabilities,
         )
         runtime.peak_stack_depth = runtime.stack.depth()
+        if self._active_transaction is not None:
+            runtime.transaction_id = self._active_transaction.record.transaction_id
+            runtime.transaction_active = True
         tokens = self._tokenizer.tokenize(source)
 
         index = 0
@@ -291,6 +516,8 @@ class InterpreterSession:
                         parsed_or_error,
                         token,
                         token_index=token.index,
+                        transaction_status=self.transaction_status,
+                        transaction_active=self._active_transaction is not None,
                     )
                 parsed = parsed_or_error
                 publish_error = self._publish_definition(parsed, runtime)
@@ -300,6 +527,8 @@ class InterpreterSession:
                         publish_error,
                         token,
                         token_index=token.index,
+                        transaction_status=self.transaction_status,
+                        transaction_active=self._active_transaction is not None,
                     )
                 index = parsed.end_index
                 continue
@@ -310,7 +539,14 @@ class InterpreterSession:
                 call_depth=0,
             )
             if error is not None:
-                return self._fail(runtime, error, token, token_index=token.index)
+                return self._fail(
+                    runtime,
+                    error,
+                    token,
+                    token_index=token.index,
+                    transaction_status=self.transaction_status,
+                    transaction_active=self._active_transaction is not None,
+                )
             index += 1
 
         return InterpreterResult.success(
@@ -323,6 +559,14 @@ class InterpreterSession:
             },
             budget=effective_budget,
             usage=runtime.usage,
+            capabilities=effective_capabilities,
+            used_capabilities=runtime.used_capabilities,
+            transaction_id=None
+            if self._active_transaction is None
+            else self._active_transaction.record.transaction_id,
+            transaction_status=self.transaction_status,
+            transaction_active=self._active_transaction is not None,
+            transaction_rolled_back=False,
         )
 
     def _check_step_budget(
@@ -342,10 +586,184 @@ class InterpreterSession:
             )
         return None
 
+    def _require_session_capabilities(self, required: CapabilitySet) -> None:
+        if self._capabilities.allows(required):
+            return
+        raise CapabilityDenied(
+            "Capability denied",
+            context={
+                "required": list(required.to_tuple()),
+                "granted": list(self._capabilities.to_tuple()),
+                "missing": list(self._capabilities.missing(required).to_tuple()),
+            },
+        )
+
+    def _resolve_execution_capabilities(
+        self, requested: CapabilitySet | None
+    ) -> tuple[CapabilitySet, FaifthError | None]:
+        if requested is None:
+            return self._capabilities, None
+        if not requested.issubset(self._capabilities):
+            return self._capabilities, CapabilityEscalationDenied(
+                "Capability escalation denied",
+                context={
+                    "requested": requested.to_tuple(),
+                    "granted": self._capabilities.to_tuple(),
+                    "missing": requested.difference(self._capabilities).to_tuple(),
+                },
+            )
+        return self._capabilities.intersection(requested), None
+
+    def _capability_error(
+        self,
+        *,
+        required: CapabilitySet,
+        granted: CapabilitySet,
+        token: Token,
+        word_name: str,
+        call_depth: int,
+        transaction_id: str | None,
+    ) -> CapabilityDenied:
+        missing = granted.missing(required)
+        return CapabilityDenied(
+            f"Capability denied for {word_name}",
+            context={
+                "word": word_name,
+                "token": token.text,
+                "index": token.index,
+                "required": list(required.to_tuple()),
+                "granted": list(granted.to_tuple()),
+                "missing": list(missing.to_tuple()),
+                "depth": call_depth,
+                "transaction_id": transaction_id,
+            },
+        )
+
+    def _check_required_capabilities(
+        self,
+        required: CapabilitySet,
+        *,
+        runtime: _RuntimeState,
+        token: Token,
+        word_name: str,
+        call_depth: int,
+    ) -> CapabilityDenied | None:
+        if runtime.capabilities.allows(required):
+            return None
+        return self._capability_error(
+            required=required,
+            granted=runtime.capabilities,
+            token=token,
+            word_name=word_name,
+            call_depth=call_depth,
+            transaction_id=runtime.transaction_id,
+        )
+
+    def _permission_trace_entry(
+        self,
+        *,
+        token: Token,
+        token_index: int,
+        kind: str,
+        stack_before: StackSnapshot,
+        stack_after: StackSnapshot,
+        status: str,
+        call_depth: int,
+        runtime: _RuntimeState,
+        error: FaifthError | None = None,
+        required: CapabilitySet | None = None,
+        permission_status: str | None = None,
+    ) -> TraceEntry:
+        missing = None if required is None else runtime.capabilities.missing(required)
+        return TraceEntry(
+            token=token.text,
+            token_index=token_index,
+            kind=kind,  # type: ignore[arg-type]
+            stack_before=stack_before,
+            stack_after=stack_after,
+            status=status,  # type: ignore[arg-type]
+            error=error,
+            depth=call_depth,
+            line=token.line,
+            column=token.column,
+            offset=token.offset,
+            required_capabilities=required,
+            granted_capabilities=runtime.capabilities,
+            missing_capabilities=missing,
+            permission_status=permission_status,
+            transaction_id=runtime.transaction_id,
+        )
+
+    def _capabilities_from_error(self, error: FaifthError) -> CapabilitySet:
+        missing = error.context.get("missing")
+        if isinstance(missing, (list, tuple)):
+            return CapabilitySet.of(*tuple(str(item) for item in missing))
+        return CapabilitySet.none()
+
+    def _rollback_active_transaction(
+        self,
+        *,
+        reason: str,
+        error: FaifthError | None,
+    ) -> TransactionRecord:
+        if self._active_transaction is None:
+            raise NoActiveTransaction(
+                "No active transaction",
+                context={"operation": "rollback"},
+            )
+        active = self._active_transaction
+        current_words = tuple(self._dictionary.list_user_words())
+        snapshot_words = tuple(name for name, _ in active.user_words_snapshot)
+        words_added = tuple(
+            name for name in current_words if name not in snapshot_words
+        )
+        words_removed = tuple(
+            name for name in snapshot_words if name not in current_words
+        )
+        self._dictionary.restore_user_words(active.user_words_snapshot)
+        record = replace(
+            active.record,
+            status="rolled_back",
+            rolled_back=True,
+            rollback_reason=reason,
+            error=error,
+            ended_sequence=self._transaction_sequence,
+            words_added=words_added,
+            words_removed=words_removed,
+        )
+        self._active_transaction = None
+        self._last_transaction = record
+        return record
+
     def _publish_definition(
         self, parsed: ParsedDefinition, runtime: _RuntimeState
     ) -> FaifthError | None:
         stack_before = runtime.stack.snapshot()
+        required = CapabilitySet.of("dictionary.define")
+        permission_error = self._check_required_capabilities(
+            required,
+            runtime=runtime,
+            token=parsed.name_token,
+            word_name=parsed.name,
+            call_depth=0,
+        )
+        if permission_error is not None:
+            runtime.trace.append(
+                self._permission_trace_entry(
+                    token=parsed.name_token,
+                    token_index=parsed.start_index,
+                    kind="error",
+                    stack_before=stack_before,
+                    stack_after=stack_before,
+                    status="error",
+                    call_depth=0,
+                    runtime=runtime,
+                    error=permission_error,
+                    required=required,
+                    permission_status="denied",
+                )
+            )
+            return permission_error
         try:
             word = self._dictionary.validate_user_word(
                 parsed.name,
@@ -373,15 +791,19 @@ class InterpreterSession:
 
         runtime.steps += 1
         runtime.peak_stack_depth = max(runtime.peak_stack_depth, runtime.stack.depth())
+        runtime.used_capabilities = runtime.used_capabilities.union(required)
         runtime.trace.append(
-            TraceEntry(
-                token=parsed.name,
+            self._permission_trace_entry(
+                token=parsed.name_token,
                 token_index=parsed.start_index,
                 kind="definition",
                 stack_before=stack_before,
                 stack_after=runtime.stack.snapshot(),
                 status="ok",
-                depth=0,
+                call_depth=0,
+                runtime=runtime,
+                required=required,
+                permission_status="allowed",
             )
         )
         return None
@@ -498,23 +920,47 @@ class InterpreterSession:
         call_depth: int,
     ) -> FaifthError | None:
         stack_before = runtime.stack.snapshot()
-        contract_error = self._check_contract_inputs(
-            primitive.contract, runtime.stack, token=token, word_name=primitive.name
+        permission_error = self._check_required_capabilities(
+            primitive.required_capabilities,
+            runtime=runtime,
+            token=token,
+            word_name=primitive.name,
+            call_depth=call_depth,
         )
-        if contract_error is not None:
+        if permission_error is not None:
             runtime.trace.append(
-                TraceEntry(
-                    token=token.text,
+                self._permission_trace_entry(
+                    token=token,
                     token_index=token.index,
                     kind="error",
                     stack_before=stack_before,
                     stack_after=stack_before,
                     status="error",
+                    call_depth=call_depth,
+                    runtime=runtime,
+                    error=permission_error,
+                    required=primitive.required_capabilities,
+                    permission_status="denied",
+                )
+            )
+            return permission_error
+        contract_error = self._check_contract_inputs(
+            primitive.contract, runtime.stack, token=token, word_name=primitive.name
+        )
+        if contract_error is not None:
+            runtime.trace.append(
+                self._permission_trace_entry(
+                    token=token,
+                    token_index=token.index,
+                    kind="error",
+                    stack_before=stack_before,
+                    stack_after=stack_before,
+                    status="error",
+                    call_depth=call_depth,
+                    runtime=runtime,
                     error=contract_error,
-                    depth=call_depth,
-                    line=token.line,
-                    column=token.column,
-                    offset=token.offset,
+                    required=primitive.required_capabilities,
+                    permission_status="allowed",
                 )
             )
             return contract_error
@@ -534,36 +980,36 @@ class InterpreterSession:
                 },
             )
             runtime.trace.append(
-                TraceEntry(
-                    token=token.text,
+                self._permission_trace_entry(
+                    token=token,
                     token_index=token.index,
                     kind="error",
                     stack_before=stack_before,
                     stack_after=runtime.stack.snapshot(),
                     status="error",
+                    call_depth=call_depth,
+                    runtime=runtime,
                     error=error,
-                    depth=call_depth,
-                    line=token.line,
-                    column=token.column,
-                    offset=token.offset,
+                    required=primitive.required_capabilities,
+                    permission_status="allowed",
                 )
             )
             return error
         except FaifthError as caught_error:
             runtime.stack.restore(stack_before)
             runtime.trace.append(
-                TraceEntry(
-                    token=token.text,
+                self._permission_trace_entry(
+                    token=token,
                     token_index=token.index,
                     kind="error",
                     stack_before=stack_before,
                     stack_after=runtime.stack.snapshot(),
                     status="error",
+                    call_depth=call_depth,
+                    runtime=runtime,
                     error=caught_error,
-                    depth=call_depth,
-                    line=token.line,
-                    column=token.column,
-                    offset=token.offset,
+                    required=primitive.required_capabilities,
+                    permission_status="allowed",
                 )
             )
             return caught_error
@@ -579,18 +1025,18 @@ class InterpreterSession:
                 },
             )
             runtime.trace.append(
-                TraceEntry(
-                    token=token.text,
+                self._permission_trace_entry(
+                    token=token,
                     token_index=token.index,
                     kind="error",
                     stack_before=stack_before,
                     stack_after=runtime.stack.snapshot(),
                     status="error",
+                    call_depth=call_depth,
+                    runtime=runtime,
                     error=internal_error,
-                    depth=call_depth,
-                    line=token.line,
-                    column=token.column,
-                    offset=token.offset,
+                    required=primitive.required_capabilities,
+                    permission_status="allowed",
                 )
             )
             return internal_error
@@ -605,35 +1051,38 @@ class InterpreterSession:
         if contract_post_error is not None:
             runtime.stack.restore(stack_before)
             runtime.trace.append(
-                TraceEntry(
-                    token=token.text,
+                self._permission_trace_entry(
+                    token=token,
                     token_index=token.index,
                     kind="error",
                     stack_before=stack_before,
                     stack_after=runtime.stack.snapshot(),
                     status="error",
+                    call_depth=call_depth,
+                    runtime=runtime,
                     error=contract_post_error,
-                    depth=call_depth,
-                    line=token.line,
-                    column=token.column,
-                    offset=token.offset,
+                    required=primitive.required_capabilities,
+                    permission_status="allowed",
                 )
             )
             return contract_post_error
 
         runtime.peak_stack_depth = max(runtime.peak_stack_depth, runtime.stack.depth())
+        runtime.used_capabilities = runtime.used_capabilities.union(
+            primitive.required_capabilities
+        )
         runtime.trace.append(
-            TraceEntry(
-                token=token.text,
+            self._permission_trace_entry(
+                token=token,
                 token_index=token.index,
                 kind="primitive",
                 stack_before=stack_before,
                 stack_after=runtime.stack.snapshot(),
                 status="ok",
-                depth=call_depth,
-                line=token.line,
-                column=token.column,
-                offset=token.offset,
+                call_depth=call_depth,
+                runtime=runtime,
+                required=primitive.required_capabilities,
+                permission_status="allowed",
             )
         )
         return None
@@ -646,6 +1095,30 @@ class InterpreterSession:
         call_depth: int,
     ) -> FaifthError | None:
         stack_before = runtime.stack.snapshot()
+        permission_error = self._check_required_capabilities(
+            word.required_capabilities,
+            runtime=runtime,
+            token=token,
+            word_name=word.name,
+            call_depth=call_depth,
+        )
+        if permission_error is not None:
+            runtime.trace.append(
+                self._permission_trace_entry(
+                    token=token,
+                    token_index=token.index,
+                    kind="error",
+                    stack_before=stack_before,
+                    stack_after=stack_before,
+                    status="error",
+                    call_depth=call_depth,
+                    runtime=runtime,
+                    error=permission_error,
+                    required=word.required_capabilities,
+                    permission_status="denied",
+                )
+            )
+            return permission_error
         next_call_depth = call_depth + 1
         max_call_depth = runtime.budget.max_call_depth
         if max_call_depth is not None and next_call_depth > max_call_depth:
@@ -659,18 +1132,18 @@ class InterpreterSession:
                 },
             )
             runtime.trace.append(
-                TraceEntry(
-                    token=token.text,
+                self._permission_trace_entry(
+                    token=token,
                     token_index=token.index,
                     kind="error",
                     stack_before=stack_before,
                     stack_after=stack_before,
                     status="error",
+                    call_depth=call_depth,
+                    runtime=runtime,
                     error=call_error,
-                    depth=call_depth,
-                    line=token.line,
-                    column=token.column,
-                    offset=token.offset,
+                    required=word.required_capabilities,
+                    permission_status="allowed",
                 )
             )
             return call_error
@@ -682,35 +1155,35 @@ class InterpreterSession:
             )
         if contract_error is not None:
             runtime.trace.append(
-                TraceEntry(
-                    token=token.text,
+                self._permission_trace_entry(
+                    token=token,
                     token_index=token.index,
                     kind="error",
                     stack_before=stack_before,
                     stack_after=stack_before,
                     status="error",
+                    call_depth=call_depth,
+                    runtime=runtime,
                     error=contract_error,
-                    depth=call_depth,
-                    line=token.line,
-                    column=token.column,
-                    offset=token.offset,
+                    required=word.required_capabilities,
+                    permission_status="allowed",
                 )
             )
             return contract_error
 
         runtime.peak_call_depth = max(runtime.peak_call_depth, next_call_depth)
         runtime.trace.append(
-            TraceEntry(
-                token=token.text,
+            self._permission_trace_entry(
+                token=token,
                 token_index=token.index,
                 kind="call",
                 stack_before=stack_before,
                 stack_after=stack_before,
                 status="ok",
-                depth=call_depth,
-                line=token.line,
-                column=token.column,
-                offset=token.offset,
+                call_depth=call_depth,
+                runtime=runtime,
+                required=word.required_capabilities,
+                permission_status="allowed",
             )
         )
 
@@ -727,15 +1200,18 @@ class InterpreterSession:
             if step_error is not None:
                 runtime.stack.restore(call_snapshot)
                 runtime.trace.append(
-                    TraceEntry(
-                        token=body_token.text,
+                    self._permission_trace_entry(
+                        token=body_token,
                         token_index=body_token.index,
                         kind="error",
                         stack_before=call_snapshot,
                         stack_after=runtime.stack.snapshot(),
                         status="error",
+                        call_depth=next_call_depth,
+                        runtime=runtime,
                         error=step_error,
-                        depth=next_call_depth,
+                        required=word.required_capabilities,
+                        permission_status="allowed",
                     )
                 )
                 return step_error
@@ -760,35 +1236,38 @@ class InterpreterSession:
         if post_error is not None:
             runtime.stack.restore(stack_before)
             runtime.trace.append(
-                TraceEntry(
-                    token=token.text,
+                self._permission_trace_entry(
+                    token=token,
                     token_index=token.index,
                     kind="error",
                     stack_before=stack_before,
                     stack_after=runtime.stack.snapshot(),
                     status="error",
+                    call_depth=call_depth,
+                    runtime=runtime,
                     error=post_error,
-                    depth=call_depth,
-                    line=token.line,
-                    column=token.column,
-                    offset=token.offset,
+                    required=word.required_capabilities,
+                    permission_status="allowed",
                 )
             )
             return post_error
 
         runtime.trace.append(
-            TraceEntry(
-                token=token.text,
+            self._permission_trace_entry(
+                token=token,
                 token_index=token.index,
                 kind="return",
                 stack_before=stack_before,
                 stack_after=runtime.stack.snapshot(),
                 status="ok",
-                depth=call_depth,
-                line=token.line,
-                column=token.column,
-                offset=token.offset,
+                call_depth=call_depth,
+                runtime=runtime,
+                required=word.required_capabilities,
+                permission_status="allowed",
             )
+        )
+        runtime.used_capabilities = runtime.used_capabilities.union(
+            word.required_capabilities
         )
         return None
 
@@ -878,7 +1357,34 @@ class InterpreterSession:
         token: Token,
         *,
         token_index: int,
+        capabilities: CapabilitySet | None = None,
+        missing_capabilities: CapabilitySet | None = None,
+        transaction_status: str | None = None,
+        transaction_active: bool | None = None,
+        transaction_rolled_back: bool | None = None,
     ) -> InterpreterResult:
+        transaction_id = runtime.transaction_id
+        rolled_back = runtime.transaction_rolled_back
+        transaction_rollback_reason = runtime.transaction_rollback_reason
+
+        if self._active_transaction is not None:
+            rollback_reason = error.code
+            rollback_error = error
+            transaction_id = self._active_transaction.record.transaction_id
+            self._rollback_active_transaction(
+                reason=rollback_reason,
+                error=rollback_error,
+            )
+            transaction_status = self.transaction_status
+            transaction_active = False
+            rolled_back = True
+            transaction_rollback_reason = rollback_reason
+            if self._last_transaction is not None:
+                transaction_id = self._last_transaction.transaction_id
+
+        if transaction_rolled_back is None:
+            transaction_rolled_back = rolled_back
+
         return InterpreterResult.failure(
             error=error,
             stack=runtime.stack,
@@ -887,6 +1393,24 @@ class InterpreterSession:
             metadata={"token_index": token_index},
             budget=runtime.budget,
             usage=runtime.usage,
+            capabilities=capabilities
+            if capabilities is not None
+            else runtime.capabilities,
+            used_capabilities=runtime.used_capabilities,
+            missing_capabilities=(
+                missing_capabilities
+                if missing_capabilities is not None
+                else self._capabilities_from_error(error)
+            ),
+            transaction_id=transaction_id,
+            transaction_status=transaction_status,
+            transaction_active=(
+                transaction_active
+                if transaction_active is not None
+                else self._active_transaction is not None
+            ),
+            transaction_rolled_back=transaction_rolled_back,
+            transaction_rollback_reason=transaction_rollback_reason,
         )
 
 

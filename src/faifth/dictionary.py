@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
+from .capabilities import CapabilitySet
 from .contracts import StackContract, ValueKind
 from .errors import (
     DuplicateWord,
@@ -63,6 +64,7 @@ class UserWord:
     body: tuple[str, ...]
     dependencies: tuple[str, ...]
     primitive_dependencies: tuple[str, ...] = ()
+    required_capabilities: CapabilitySet = CapabilitySet.none()
     contract: StackContract | None = None
     source: str | None = None
     definition_index: int | None = None
@@ -88,6 +90,7 @@ class UserWord:
             "body": list(self.body),
             "dependencies": list(self.dependencies),
             "primitive_dependencies": list(self.primitive_dependencies),
+            "required_capabilities": self.required_capabilities.to_dict(),
             "contract": None if self.contract is None else self.contract.to_dict(),
             "source": self.source,
             "definition_index": self.definition_index,
@@ -134,6 +137,12 @@ class Dictionary:
 
     def list_user_words(self) -> tuple[str, ...]:
         return tuple(self._user_words)
+
+    def snapshot_user_words(self) -> tuple[tuple[str, UserWord], ...]:
+        return tuple(self._user_words.items())
+
+    def restore_user_words(self, snapshot: tuple[tuple[str, UserWord], ...]) -> None:
+        self._user_words = dict(snapshot)
 
     def validate_name(self, name: str) -> None:
         if not isinstance(name, str) or not name:
@@ -228,11 +237,17 @@ class Dictionary:
                 body_tokens=body_tokens,
             )
 
+        required_capabilities = self._collect_required_capabilities(
+            body_tokens,
+            visitor={name},
+        )
+
         return UserWord(
             name=name,
             body=body_tokens,
             dependencies=tuple(dependencies),
             primitive_dependencies=tuple(primitive_dependencies),
+            required_capabilities=required_capabilities,
             contract=contract,
             source=source,
             definition_index=definition_index,
@@ -340,6 +355,34 @@ class Dictionary:
             finally:
                 visitor.remove(resolved.name)
         return current
+
+    def _collect_required_capabilities(
+        self,
+        tokens: tuple[str, ...],
+        *,
+        visitor: set[str],
+    ) -> CapabilitySet:
+        required = CapabilitySet.none()
+        for token in tokens:
+            if _is_literal(token):
+                continue
+            resolved = self.resolve(token)
+            if resolved is None:
+                raise UnknownWord(token, index=-1)
+            if isinstance(resolved, Primitive):
+                required = required.union(resolved.required_capabilities)
+                continue
+            if resolved.name in visitor:
+                raise RecursiveDefinition(
+                    f"Recursive definition: {resolved.name}",
+                    context={"name": resolved.name},
+                )
+            visitor.add(resolved.name)
+            try:
+                required = required.union(resolved.required_capabilities)
+            finally:
+                visitor.remove(resolved.name)
+        return required
 
 
 __all__ = ["Dictionary", "UserWord"]

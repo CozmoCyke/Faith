@@ -33,6 +33,7 @@ def test_dictionary_builds_and_inspects_user_words() -> None:
         "body": ["dup", "*"],
         "dependencies": [],
         "primitive_dependencies": ["dup", "*"],
+        "required_capabilities": {"granted": ["core.compute", "core.stack"]},
         "contract": None,
         "source": None,
         "definition_index": None,

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from .errors import InvalidContract, MalformedContract, UnknownContractType
 from .tokenizer import Token
 
 
-class ValueKind(str, Enum):
+class ValueKind(StrEnum):
     INT = "int"
     BOOL = "bool"
     ANY = "any"
@@ -125,8 +125,7 @@ def check_input_segment(
     if len(observed) < len(expected):
         return False, len(observed)
     return all(
-        expected_kind is ValueKind.ANY
-        or _kind_name(item) == expected_kind.value
+        expected_kind is ValueKind.ANY or _kind_name(item) == expected_kind.value
         for item, expected_kind in zip(observed, expected, strict=False)
     ), len(expected)
 

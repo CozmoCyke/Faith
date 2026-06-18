@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
+from .capabilities import CapabilitySet
 from .contracts import StackContract, ValueKind
 from .errors import TypeMismatch
 from .stack import Stack
@@ -16,6 +17,7 @@ class Primitive:
     name: str
     execute: Callable[[Stack], None]
     contract: StackContract
+    required_capabilities: CapabilitySet
     behavior: str
     description: str = ""
 
@@ -26,6 +28,7 @@ class Primitive:
             "description": self.description,
             "behavior": self.behavior,
             "contract": self.contract.to_dict(),
+            "required_capabilities": self.required_capabilities.to_dict(),
         }
 
     def simulate(self, stack: tuple[ValueKind, ...]) -> tuple[ValueKind, ...]:
@@ -164,6 +167,7 @@ DEFAULT_PRIMITIVES: tuple[Primitive, ...] = (
         name="+",
         execute=_atomic(_prim_add),
         contract=StackContract((ValueKind.INT, ValueKind.INT), (ValueKind.INT,)),
+        required_capabilities=CapabilitySet.of("core.compute"),
         behavior="add",
         description="Add two integers",
     ),
@@ -171,6 +175,7 @@ DEFAULT_PRIMITIVES: tuple[Primitive, ...] = (
         name="-",
         execute=_atomic(_prim_sub),
         contract=StackContract((ValueKind.INT, ValueKind.INT), (ValueKind.INT,)),
+        required_capabilities=CapabilitySet.of("core.compute"),
         behavior="sub",
         description="Subtract two integers",
     ),
@@ -178,6 +183,7 @@ DEFAULT_PRIMITIVES: tuple[Primitive, ...] = (
         name="*",
         execute=_atomic(_prim_mul),
         contract=StackContract((ValueKind.INT, ValueKind.INT), (ValueKind.INT,)),
+        required_capabilities=CapabilitySet.of("core.compute"),
         behavior="mul",
         description="Multiply two integers",
     ),
@@ -185,6 +191,7 @@ DEFAULT_PRIMITIVES: tuple[Primitive, ...] = (
         name="dup",
         execute=_atomic(_prim_dup),
         contract=StackContract((ValueKind.ANY,), (ValueKind.ANY, ValueKind.ANY)),
+        required_capabilities=CapabilitySet.of("core.stack"),
         behavior="dup",
         description="Duplicate top item",
     ),
@@ -192,6 +199,7 @@ DEFAULT_PRIMITIVES: tuple[Primitive, ...] = (
         name="drop",
         execute=_atomic(_prim_drop),
         contract=StackContract((ValueKind.ANY,), ()),
+        required_capabilities=CapabilitySet.of("core.stack"),
         behavior="drop",
         description="Drop top item",
     ),
@@ -202,6 +210,7 @@ DEFAULT_PRIMITIVES: tuple[Primitive, ...] = (
             (ValueKind.ANY, ValueKind.ANY),
             (ValueKind.ANY, ValueKind.ANY),
         ),
+        required_capabilities=CapabilitySet.of("core.stack"),
         behavior="swap",
         description="Swap top two",
     ),
@@ -212,6 +221,7 @@ DEFAULT_PRIMITIVES: tuple[Primitive, ...] = (
             (ValueKind.ANY, ValueKind.ANY),
             (ValueKind.ANY, ValueKind.ANY, ValueKind.ANY),
         ),
+        required_capabilities=CapabilitySet.of("core.stack"),
         behavior="over",
         description="Copy second",
     ),
@@ -219,6 +229,7 @@ DEFAULT_PRIMITIVES: tuple[Primitive, ...] = (
         name="=",
         execute=_atomic(_prim_equal),
         contract=StackContract((ValueKind.ANY, ValueKind.ANY), (ValueKind.BOOL,)),
+        required_capabilities=CapabilitySet.of("core.compute"),
         behavior="equal",
         description="Compare values",
     ),
@@ -226,6 +237,7 @@ DEFAULT_PRIMITIVES: tuple[Primitive, ...] = (
         name="depth",
         execute=_atomic(_prim_depth),
         contract=StackContract((), (ValueKind.INT,)),
+        required_capabilities=CapabilitySet.of("core.stack"),
         behavior="depth",
         description="Push depth",
     ),
