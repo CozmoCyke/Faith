@@ -13,5 +13,6 @@ venv/
 env/
 .env
 .env.*
+.tmp-phase6-*/
 .idea/
 .vscode/

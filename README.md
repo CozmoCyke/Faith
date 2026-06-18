@@ -10,6 +10,7 @@ Current status:
 - Phase 3 is complete: stack contracts and deterministic execution budgets exist.
 - Phase 4 is complete: capabilities, permissions, and transactions exist.
 - Phase 5 is complete: persistence, versioning, and restoration exist.
+- Phase 6 is complete: a structured local IA-to-Faifth protocol exists.
 - Faifth is not an OS.
 - Faifth is not a full agent framework.
 
@@ -64,6 +65,16 @@ Current status:
 - explicit load and restore operations;
 - storage permissions for read, write, and restore flows;
 - corruption checks on persisted word versions.
+
+### Phase 6
+
+- structured protocol requests and responses;
+- explicit protocol sessions;
+- protocol actions for inspection, execution, testing, publication, transactions, and persistence;
+- repository access by explicit repository id;
+- canonical JSON serialization for deterministic replay;
+- request-id replay protection;
+- protocol audit events and structured protocol errors.
 
 ## Capability profiles
 
@@ -267,3 +278,72 @@ Not yet implemented:
 - load and restore are deterministic but intentionally conservative;
 - no free-form filesystem or network access is exposed by default;
 - the runtime remains a language plus repository, not an OS.
+
+## Protocol
+
+Faifth Phase 6 adds a local structured protocol for IA clients.
+
+Protocol identity:
+
+- `faifth-agent`
+- version `0.1`
+
+Typical request fields:
+
+- `protocol`
+- `version`
+- `request_id`
+- `session_id`
+- `action`
+- `arguments`
+
+Common actions:
+
+- `create_session`
+- `inspect_state`
+- `list_words`
+- `inspect_word`
+- `propose_definition`
+- `test_definition`
+- `publish_definition`
+- `execute`
+- `save_dictionary`
+- `load_dictionary`
+- `list_versions`
+- `restore_version`
+
+Example:
+
+```python
+from faifth import CapabilitySet, DictionaryRepository, FaifthAgentProtocol, ProtocolRequest
+
+protocol = FaifthAgentProtocol()
+protocol.register_repository("main", DictionaryRepository("faifth.sqlite3"))
+
+create = ProtocolRequest.from_dict(
+    {
+        "protocol": "faifth-agent",
+        "version": "0.1",
+        "request_id": "req-1",
+        "session_id": "session-1",
+        "action": "create_session",
+        "arguments": {
+            "capabilities": [
+                "core.compute",
+                "core.stack",
+                "dictionary.define",
+                "dictionary.read",
+                "dictionary.restore",
+                "introspection.read",
+                "storage.read",
+                "storage.write",
+            ],
+            "repository_ids": ["main"],
+        },
+    }
+)
+
+protocol.handle(create)
+```
+
+The protocol remains local and explicit. It does not add network transport or a general agent framework.

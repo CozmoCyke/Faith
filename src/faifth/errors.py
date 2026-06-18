@@ -312,6 +312,81 @@ class ActiveVersionError(PersistenceError):
     default_message = "Active version error"
 
 
+class ProtocolError(FaifthError):
+    default_code = "faifth.protocol_error"
+    default_message = "Protocol error"
+
+
+class InvalidRequest(ProtocolError):
+    default_code = "faifth.invalid_request"
+    default_message = "Invalid request"
+
+
+class UnsupportedProtocolVersion(ProtocolError):
+    default_code = "faifth.unsupported_protocol_version"
+    default_message = "Unsupported protocol version"
+
+
+class UnknownAction(ProtocolError):
+    default_code = "faifth.unknown_action"
+    default_message = "Unknown action"
+
+
+class UnknownSession(ProtocolError):
+    default_code = "faifth.unknown_session"
+    default_message = "Unknown session"
+
+
+class SessionAlreadyExists(ProtocolError):
+    default_code = "faifth.session_already_exists"
+    default_message = "Session already exists"
+
+
+class RequestIdConflict(ProtocolError):
+    default_code = "faifth.request_id_conflict"
+    default_message = "Request id conflict"
+
+
+class InvalidArguments(ProtocolError):
+    default_code = "faifth.invalid_arguments"
+    default_message = "Invalid arguments"
+
+
+class UnknownCandidate(ProtocolError):
+    default_code = "faifth.unknown_candidate"
+    default_message = "Unknown candidate"
+
+
+class CandidateHashMismatch(ProtocolError):
+    default_code = "faifth.candidate_hash_mismatch"
+    default_message = "Candidate hash mismatch"
+
+
+class CandidateNotTested(ProtocolError):
+    default_code = "faifth.candidate_not_tested"
+    default_message = "Candidate not tested"
+
+
+class CandidateTestsFailed(ProtocolError):
+    default_code = "faifth.candidate_tests_failed"
+    default_message = "Candidate tests failed"
+
+
+class CandidateStale(ProtocolError):
+    default_code = "faifth.candidate_stale"
+    default_message = "Candidate stale"
+
+
+class UnknownRepository(ProtocolError):
+    default_code = "faifth.unknown_repository"
+    default_message = "Unknown repository"
+
+
+class ProtocolLimitExceeded(ProtocolError):
+    default_code = "faifth.protocol_limit_exceeded"
+    default_message = "Protocol limit exceeded"
+
+
 __all__ = [
     "FaifthError",
     "StackUnderflow",
@@ -357,4 +432,19 @@ __all__ = [
     "DependencyCycle",
     "RestoreValidationError",
     "ActiveVersionError",
+    "ProtocolError",
+    "InvalidRequest",
+    "UnsupportedProtocolVersion",
+    "UnknownAction",
+    "UnknownSession",
+    "SessionAlreadyExists",
+    "RequestIdConflict",
+    "InvalidArguments",
+    "UnknownCandidate",
+    "CandidateHashMismatch",
+    "CandidateNotTested",
+    "CandidateTestsFailed",
+    "CandidateStale",
+    "UnknownRepository",
+    "ProtocolLimitExceeded",
 ]

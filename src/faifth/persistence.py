@@ -84,7 +84,7 @@ class SaveResult(PersistenceResult):
     active_versions: tuple[tuple[str, int], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
-        data = super().to_dict()
+        data = PersistenceResult.to_dict(self)
         data.update(
             {
                 "created_versions": [
@@ -111,7 +111,7 @@ class LoadResult(PersistenceResult):
     dictionary: Dictionary | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        data = super().to_dict()
+        data = PersistenceResult.to_dict(self)
         data.update(
             {
                 "loaded_words": list(self.loaded_words),
@@ -142,7 +142,7 @@ class RestoreResult(LoadResult):
     restored_version: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        data = super().to_dict()
+        data = LoadResult.to_dict(self)
         data.update(
             {
                 "restored_word": self.restored_word,
