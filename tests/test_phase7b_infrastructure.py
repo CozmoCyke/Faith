@@ -22,17 +22,20 @@ from experiments.phase7b.infra import (  # noqa: E402
     build_pilot_manifest,
     build_pilot_run_keys,
     build_pilot_run_plan,
-    build_protocol_payload,
     build_validation_summary,
     redact_secrets,
     regenerate_derived_artifacts,
     resume_records,
+    render_validation_report,
+    validate_pilot_records,
     write_jsonl,
 )
 from experiments.phase7b.runner import prepare_infrastructure  # noqa: E402
 
 
-def _sample_raw_record(run_id: str, scenario_id: str, condition: str, repetition: int) -> dict:
+def _sample_raw_record(
+    run_id: str, scenario_id: str, condition: str, repetition: int
+) -> dict:
     return {
         "run_id": run_id,
         "scenario_id": scenario_id,
@@ -83,10 +86,7 @@ def test_pilot_manifest_is_deterministic_and_complete() -> None:
 
 def test_pilot_runs_cover_all_conditions_and_scenarios() -> None:
     runs = build_pilot_run_plan()
-    combinations = {
-        (run.scenario_id, run.condition, run.repetition)
-        for run in runs
-    }
+    combinations = {(run.scenario_id, run.condition, run.repetition) for run in runs}
 
     assert len(combinations) == 18
     assert {run.scenario_id for run in runs} == set(PILOT_SCENARIO_NAMES)
@@ -149,6 +149,54 @@ def test_artifacts_regenerate_from_raw(tmp_path: Path) -> None:
     assert summary["secrets_found"] == 0
     assert (derived_dir / "summary.csv").exists()
     assert (derived_dir / "pilot_validation.md").exists()
+    assert (derived_dir / "PILOT_VALIDATION_REPORT.md").exists()
+
+
+def test_validate_pilot_records_detects_complete_manifest() -> None:
+    manifest = build_pilot_manifest()
+    records = [
+        {
+            "campaign_id": manifest["campaign_id"],
+            "run_id": run["run_id"],
+            "scenario_id": run["scenario_id"],
+            "condition": run["condition"],
+            "repetition": run["repetition"],
+            "randomization_position": run["randomization_position"],
+            "protocol_hash": run["protocol_hash"],
+            "scenario_hash": run["scenario_hash"],
+            "model_snapshot": run["model_snapshot"],
+            "status": "ok",
+            "success": True,
+            "safe_refusal": False,
+            "dangerous_failure": False,
+            "budget_exhausted": False,
+            "expected_result": "ok",
+            "observed_result": "ok",
+            "initial_state": {},
+            "final_state": {},
+            "state_restored": True,
+            "output_tokens_used": 0,
+            "input_tokens_used": 0,
+            "model_calls_used": 0,
+            "tool_calls_used": 0,
+            "provider_retries": 0,
+            "wall_time_seconds": 0.0,
+            "termination_reason": "completed",
+            "error_category": "none",
+            "provider_calls": 0,
+            "secrets_found": 0,
+            "observed_model_snapshot": manifest["model_snapshot"],
+        }
+        for run in manifest["runs"]
+    ]
+
+    summary = validate_pilot_records(manifest, records)
+    report = render_validation_report(summary)
+
+    assert summary["decision"] == "PILOT_VALID"
+    assert summary["manifest_runs"] == 18
+    assert summary["unique_runs"] == 18
+    assert "decision: PILOT_VALID" in report
 
 
 def test_prepare_infrastructure_writes_protocol_and_manifest(tmp_path: Path) -> None:
@@ -157,7 +205,10 @@ def test_prepare_infrastructure_writes_protocol_and_manifest(tmp_path: Path) -> 
     assert (tmp_path / "protocol" / "frozen_protocol.json").exists()
     assert (tmp_path / "manifests" / f"{CAMPAIGN_ID}.json").exists()
     assert manifest["budget_profiles"]["pilot"]["name"] == PILOT_BUDGETS.name
-    assert manifest["budget_profiles"]["full_campaign"]["name"] == FULL_CAMPAIGN_BUDGETS.name
+    assert (
+        manifest["budget_profiles"]["full_campaign"]["name"]
+        == FULL_CAMPAIGN_BUDGETS.name
+    )
 
 
 def test_validation_summary_reports_expected_values() -> None:
