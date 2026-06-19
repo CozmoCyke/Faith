@@ -11,7 +11,9 @@ class MockProvider:
         self.call_count = 0
         self.sessions: dict[str, dict[str, Any]] = {}
 
-    def create_session(self, session_id: str, *, initial_state: Mapping[str, Any]) -> None:
+    def create_session(
+        self, session_id: str, *, initial_state: Mapping[str, Any]
+    ) -> None:
         self.sessions[session_id] = {"state": dict(initial_state), "runs": []}
 
     def record_run(self, session_id: str, run: Mapping[str, Any]) -> None:
