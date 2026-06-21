@@ -24,7 +24,15 @@ from .infra import (
     write_json,
     write_jsonl,
 )
-from .pilot import prepare_campaign, summarize_campaign, validate_campaign
+from .pilot import (
+    LIVE_PROTOCOL_HASH,
+    SIMULATION_DECISION,
+    load_openai_api_key,
+    prepare_campaign,
+    run_pilot_campaign,
+    summarize_campaign,
+    validate_campaign,
+)
 from .provider import (
     OpenAIProviderConfiguration,
     OpenAIProviderValidation,
@@ -50,6 +58,8 @@ __all__ = [
     "PILOT_SCENARIO_NAMES",
     "PROVIDER",
     "RANDOMIZATION_SEED",
+    "LIVE_PROTOCOL_HASH",
+    "SIMULATION_DECISION",
     "append_jsonl",
     "build_pilot_manifest",
     "build_pilot_run_plan",
@@ -73,8 +83,10 @@ __all__ = [
     "OpenAIResponseRequest",
     "build_response_request",
     "prepare_campaign",
+    "run_pilot_campaign",
     "summarize_campaign",
     "validate_campaign",
+    "load_openai_api_key",
     "write_json",
     "write_jsonl",
     "invoke_response",

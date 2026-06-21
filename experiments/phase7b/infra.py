@@ -208,7 +208,11 @@ def build_pilot_run_keys(seed: int = RANDOMIZATION_SEED) -> list[tuple[str, str,
     ]
 
 
-def build_pilot_manifest(seed: int = RANDOMIZATION_SEED) -> dict[str, Any]:
+def build_pilot_manifest(
+    seed: int = RANDOMIZATION_SEED,
+    *,
+    protocol_hash: str | None = None,
+) -> dict[str, Any]:
     plans = build_pilot_run_plan(seed=seed)
     protocol_payload = build_protocol_payload()
     selected_scenarios = _selected_scenarios()
@@ -229,7 +233,7 @@ def build_pilot_manifest(seed: int = RANDOMIZATION_SEED) -> dict[str, Any]:
             "pilot": PILOT_BUDGETS.to_dict(),
             "full_campaign": FULL_CAMPAIGN_BUDGETS.to_dict(),
         },
-        "protocol_hash": _sha256_json(protocol_payload),
+        "protocol_hash": protocol_hash or _sha256_json(protocol_payload),
         "scenario_hash": _sha256_json(
             [
                 {
