@@ -7,8 +7,10 @@ import json
 import subprocess
 import sys
 from dataclasses import replace
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -157,7 +159,7 @@ def test_resume_skips_completed_runs_without_duplicates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(pilot_module, "_ensure_clean_worktree", lambda _: None)
-    original = pilot_module._execute_mock_run
+    original = cast(Callable[..., PilotRunResult], pilot_module._execute_mock_run)
     call_count = {"value": 0}
 
     def interrupted(*args: object, **kwargs: object) -> PilotRunResult:
@@ -285,7 +287,7 @@ def test_live_mode_refuses_protocol_or_snapshot_mismatch(
     monkeypatch.setattr(pilot_module, "prepare_campaign", bad_prepare)
 
     with pytest.raises(RuntimeError, match="protocol hash mismatch"):
-        run_pilot_campaign(tmp_path, mode="live")
+        run_pilot_campaign(tmp_path / "protocol-check", mode="live")
 
     monkeypatch.setattr(pilot_module, "prepare_campaign", original_prepare)
     monkeypatch.setattr(
@@ -295,4 +297,4 @@ def test_live_mode_refuses_protocol_or_snapshot_mismatch(
     )
 
     with pytest.raises(RuntimeError, match="model snapshot mismatch"):
-        run_pilot_campaign(tmp_path, mode="live")
+        run_pilot_campaign(tmp_path / "snapshot-check", mode="live")

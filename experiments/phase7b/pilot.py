@@ -723,8 +723,10 @@ def run_pilot_campaign(
             timeout_seconds=PILOT_BUDGETS.timeout_per_call_seconds,
             max_retries=PILOT_BUDGETS.max_provider_retries_per_call,
         )
-        validation = validate_configuration(configuration, env=validation_env, tools=())
-        sdk_version = validation.sdk_version
+        provider_validation = validate_configuration(
+            configuration, env=validation_env, tools=()
+        )
+        sdk_version = provider_validation.sdk_version
         client = create_openai_client(configuration, env=validation_env)
         provider = None
 
@@ -787,16 +789,16 @@ def run_pilot_campaign(
         raw_dir=raw_dir if raw_records else None,
         derived_dir=output_root / "derived" if raw_records else None,
     )
-    validation = validate_campaign(
+    report_validation = validate_campaign(
         output_root,
         decision_label=SIMULATION_DECISION if mode == "dry-run" else None,
     )
-    summary["decision"] = validation["decision"]
+    summary["decision"] = report_validation["decision"]
     summary["protocol_hash"] = manifest["protocol_hash"]
     summary["validation_report"] = (
         output_root / "derived" / "PILOT_VALIDATION_REPORT.md"
     ).as_posix()
-    summary["resume_test"] = validation["resume_test"]
+    summary["resume_test"] = report_validation["resume_test"]
     return summary
 
 
