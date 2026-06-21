@@ -33,20 +33,20 @@ _SERVER_ERROR_CLASS_NAMES = (
 class OpenAIProviderConfiguration:
     model_alias: str = MODEL_ALIAS
     model_snapshot: str = MODEL_SNAPSHOT
-    temperature: float = 0.0
+    temperature: float | None = None
     max_output_tokens: int = PILOT_BUDGETS.max_output_tokens
     timeout_seconds: int = PILOT_BUDGETS.timeout_per_call_seconds
     max_retries: int = PILOT_BUDGETS.max_provider_retries_per_call
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        configuration: dict[str, Any] = {
             "model_alias": self.model_alias,
             "model_snapshot": self.model_snapshot,
-            "temperature": self.temperature,
             "max_output_tokens": self.max_output_tokens,
             "timeout_seconds": self.timeout_seconds,
             "max_retries": self.max_retries,
         }
+        return configuration
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,21 +67,23 @@ class OpenAIResponseRequest:
     instructions: str
     tools: tuple[dict[str, Any], ...]
     max_output_tokens: int
-    temperature: float
+    temperature: float | None
     parallel_tool_calls: bool
     timeout: int
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "model": self.model,
             "input": self.input,
             "instructions": self.instructions,
             "tools": list(self.tools),
             "max_output_tokens": self.max_output_tokens,
-            "temperature": self.temperature,
             "parallel_tool_calls": self.parallel_tool_calls,
             "timeout": self.timeout,
         }
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
+        return payload
 
 
 def import_openai_sdk() -> Any:
@@ -128,6 +130,12 @@ def _json_safe_mapping(payload: Mapping[str, Any]) -> dict[str, Any]:
 
     safe_payload = json.loads(json.dumps(payload, sort_keys=True, ensure_ascii=False))
     return cast(dict[str, Any], safe_payload)
+
+
+def _response_temperature(model_snapshot: str) -> float | None:
+    if model_snapshot == MODEL_SNAPSHOT:
+        return None
+    return 0.0
 
 
 def validate_configuration(
@@ -208,7 +216,7 @@ def build_response_request(
         instructions=str(system_prompt),
         tools=serialize_tools(tools),
         max_output_tokens=configuration.max_output_tokens,
-        temperature=configuration.temperature,
+        temperature=_response_temperature(resolved_model),
         parallel_tool_calls=False,
         timeout=configuration.timeout_seconds,
     )

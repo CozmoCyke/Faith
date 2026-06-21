@@ -20,3 +20,5 @@ env/
 phase7-*/
 .idea/
 .vscode/
+# Phase 7B campaign artifacts
+experiments/phase7b/campaigns/

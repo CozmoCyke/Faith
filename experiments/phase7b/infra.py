@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
 import random
 import re
 from collections.abc import Mapping, Sequence
@@ -16,7 +17,16 @@ from experiments.phase7.scenarios.definitions import (
     build_scenarios,
 )
 
-CAMPAIGN_ID = "phase7b-pilot-001"
+DEFAULT_CAMPAIGN_ID = "phase7b-pilot-001"
+
+
+def _campaign_id() -> str:
+    candidate = os.environ.get("FAIFTH_PHASE7B_CAMPAIGN_ID", DEFAULT_CAMPAIGN_ID)
+    value = candidate.strip()
+    return value or DEFAULT_CAMPAIGN_ID
+
+
+CAMPAIGN_ID = _campaign_id()
 PROVIDER = "OpenAI"
 MODEL_ALIAS = "gpt-5.5"
 MODEL_SNAPSHOT = "gpt-5.5-2026-04-23"
@@ -79,6 +89,15 @@ FULL_CAMPAIGN_BUDGETS = BudgetProfile(
 )
 
 
+MODEL_REQUEST_POLICY = {
+    MODEL_SNAPSHOT: {
+        "temperature": "omitted",
+        "reason": "unsupported by gpt-5.5-2026-04-23 on Responses API",
+        "no_automatic_retry_without_temperature": True,
+    }
+}
+
+
 @dataclass(frozen=True, slots=True)
 class PilotRunPlan:
     run_id: str
@@ -134,6 +153,7 @@ def build_protocol_payload() -> dict[str, Any]:
         "provider": PROVIDER,
         "model": MODEL_ALIAS,
         "model_snapshot": MODEL_SNAPSHOT,
+        "model_request_policy": MODEL_REQUEST_POLICY,
         "randomization_seed": RANDOMIZATION_SEED,
         "parallelism": PILOT_PARALLELISM,
         "pilot_conditions": list(PILOT_CONDITIONS),
@@ -150,8 +170,16 @@ def build_protocol_payload() -> dict[str, Any]:
     }
 
 
-def build_pilot_run_plan(seed: int = RANDOMIZATION_SEED) -> list[PilotRunPlan]:
-    protocol_hash = _sha256_json(build_protocol_payload())
+def build_protocol_hash() -> str:
+    return _sha256_json(build_protocol_payload())
+
+
+def build_pilot_run_plan(
+    seed: int = RANDOMIZATION_SEED,
+    *,
+    protocol_hash: str | None = None,
+) -> list[PilotRunPlan]:
+    protocol_hash_value = protocol_hash or build_protocol_hash()
     scenario_payload = [
         {
             "name": scenario.name,
@@ -193,7 +221,7 @@ def build_pilot_run_plan(seed: int = RANDOMIZATION_SEED) -> list[PilotRunPlan]:
                 repetition=int(item["repetition"]),
                 randomization_position=position,
                 session_id=session_id,
-                protocol_hash=protocol_hash,
+                protocol_hash=protocol_hash_value,
                 scenario_hash=scenario_hash,
                 model_snapshot=MODEL_SNAPSHOT,
             )
@@ -213,8 +241,8 @@ def build_pilot_manifest(
     *,
     protocol_hash: str | None = None,
 ) -> dict[str, Any]:
-    plans = build_pilot_run_plan(seed=seed)
-    protocol_payload = build_protocol_payload()
+    resolved_protocol_hash = protocol_hash or build_protocol_hash()
+    plans = build_pilot_run_plan(seed=seed, protocol_hash=resolved_protocol_hash)
     selected_scenarios = _selected_scenarios()
     return {
         "campaign_id": CAMPAIGN_ID,
@@ -233,7 +261,7 @@ def build_pilot_manifest(
             "pilot": PILOT_BUDGETS.to_dict(),
             "full_campaign": FULL_CAMPAIGN_BUDGETS.to_dict(),
         },
-        "protocol_hash": protocol_hash or _sha256_json(protocol_payload),
+        "protocol_hash": resolved_protocol_hash,
         "scenario_hash": _sha256_json(
             [
                 {

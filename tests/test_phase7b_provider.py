@@ -105,6 +105,8 @@ def test_build_response_request_uses_exact_snapshot_and_tool_serialization() -> 
     assert request.tools == ({"name": "echo", "type": "function"},)
     assert request.max_output_tokens == 4096
     assert request.timeout == 120
+    assert request.temperature is None
+    assert "temperature" not in request.to_dict()
 
 
 def test_resolve_exact_model_rejects_alias() -> None:

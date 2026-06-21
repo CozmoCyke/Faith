@@ -28,6 +28,7 @@ from .infra import (  # noqa: E402
     RANDOMIZATION_SEED,
     append_jsonl,
     build_pilot_manifest,
+    build_protocol_hash,
     build_protocol_payload,
     build_validation_summary,
     load_jsonl,
@@ -46,7 +47,7 @@ from .provider import (  # noqa: E402
     validate_configuration,
 )
 
-LIVE_PROTOCOL_HASH = "9061bbeb0f60a9e82a5617623505ea91ad3aac8d"
+LIVE_PROTOCOL_HASH = build_protocol_hash()
 SIMULATION_DECISION = "PILOT_VALID_SIMULATION"
 
 

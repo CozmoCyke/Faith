@@ -25,7 +25,9 @@ The following values must be fixed before the pilot run and remain unchanged for
 - provider: `OpenAI`
 - model: `gpt-5.5`
 - model version or snapshot: `gpt-5.5-2026-04-23`
-- temperature: `0`
+- temperature: `omitted`
+- reason: `unsupported by gpt-5.5-2026-04-23 on Responses API`
+- no automatic retry without temperature: `true`
 - seed: `unavailable for this protocol; do not rely on seed-based control`
 - pilot budget profile: `conservative_pilot`
 - pilot maximum output tokens per call: `4096`

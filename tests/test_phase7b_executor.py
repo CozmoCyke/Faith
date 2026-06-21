@@ -251,6 +251,42 @@ def test_live_run_retries_provider_errors(tmp_path: Path) -> None:
     assert result.record["input_tokens_used"] == 3
 
 
+def test_live_run_does_not_retry_unsupported_temperature_400(
+    tmp_path: Path,
+) -> None:
+    manifest = build_pilot_manifest()
+    run = manifest["runs"][0]
+    scenario = build_scenarios(BenchmarkConfig("faifth_full"))[0]
+
+    class UnsupportedTemperatureError(RuntimeError):
+        status_code = 400
+
+    class RejectingResponses:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def create(self, **_: object) -> dict[str, object]:
+            self.calls += 1
+            raise UnsupportedTemperatureError("unsupported parameter: temperature")
+
+    class RejectingClient:
+        def __init__(self) -> None:
+            self.responses = RejectingResponses()
+
+    result = _execute_live_run(
+        run=run,
+        scenario=scenario,
+        client=RejectingClient(),
+        configuration=OpenAIProviderConfiguration(),
+    )
+
+    assert result.record["provider_retries"] == 0
+    assert result.record["provider_calls"] == 1
+    assert result.record["status"] == "error"
+    assert result.record["error_category"] == "provider_error"
+    assert result.record["termination_reason"] == "provider_error"
+
+
 def test_live_mode_requires_openai_api_key_before_first_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

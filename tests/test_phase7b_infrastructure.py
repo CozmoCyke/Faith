@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import os
+import subprocess
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -78,10 +80,30 @@ def test_pilot_manifest_is_deterministic_and_complete() -> None:
     assert len(runs) == 18
     assert len({run["run_id"] for run in runs}) == 18
     assert all(run["model_snapshot"] == MODEL_SNAPSHOT for run in runs)
+    assert all(run["protocol_hash"] == manifest["protocol_hash"] for run in runs)
     assert [run["randomization_position"] for run in runs] == list(range(1, 19))
 
     same_manifest = build_pilot_manifest()
     assert same_manifest["runs"] == runs
+
+
+def test_campaign_id_can_be_overridden_in_a_fresh_process() -> None:
+    env = os.environ.copy()
+    env["FAIFTH_PHASE7B_CAMPAIGN_ID"] = "phase7b-pilot-002"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from experiments.phase7b.infra import CAMPAIGN_ID; print(CAMPAIGN_ID)",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.stdout.strip() == "phase7b-pilot-002"
 
 
 def test_pilot_runs_cover_all_conditions_and_scenarios() -> None:
