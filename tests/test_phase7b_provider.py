@@ -114,6 +114,20 @@ def test_resolve_exact_model_rejects_alias() -> None:
         resolve_exact_model("gpt-5.5")
 
 
+def test_classify_provider_error_distinguishes_insufficient_quota() -> None:
+    class QuotaError(RuntimeError):
+        status_code = 429
+
+    error = QuotaError(
+        "RateLimitError: Error code: 429 - {'error': {'message': "
+        "'You exceeded your current quota, please check your plan and billing "
+        "details.', 'type': 'insufficient_quota', 'param': None, "
+        "'code': 'insufficient_quota'}}"
+    )
+
+    assert classify_provider_error(error) == "provider_insufficient_quota"
+
+
 @pytest.mark.parametrize(
     ("error", "expected"),
     [

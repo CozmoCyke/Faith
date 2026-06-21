@@ -287,6 +287,47 @@ def test_live_run_does_not_retry_unsupported_temperature_400(
     assert result.record["termination_reason"] == "provider_error"
 
 
+def test_live_run_does_not_retry_insufficient_quota_429(
+    tmp_path: Path,
+) -> None:
+    manifest = build_pilot_manifest()
+    run = manifest["runs"][0]
+    scenario = build_scenarios(BenchmarkConfig("faifth_full"))[0]
+
+    class InsufficientQuotaError(RuntimeError):
+        status_code = 429
+
+    class QuotaResponses:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def create(self, **_: object) -> dict[str, object]:
+            self.calls += 1
+            raise InsufficientQuotaError(
+                "RateLimitError: Error code: 429 - {'error': {'message': "
+                "'You exceeded your current quota, please check your plan and "
+                "billing details.', 'type': 'insufficient_quota', 'param': "
+                "None, 'code': 'insufficient_quota'}}"
+            )
+
+    class QuotaClient:
+        def __init__(self) -> None:
+            self.responses = QuotaResponses()
+
+    result = _execute_live_run(
+        run=run,
+        scenario=scenario,
+        client=QuotaClient(),
+        configuration=OpenAIProviderConfiguration(),
+    )
+
+    assert result.record["provider_retries"] == 0
+    assert result.record["provider_calls"] == 1
+    assert result.record["status"] == "error"
+    assert result.record["error_category"] == "provider_insufficient_quota"
+    assert result.record["termination_reason"] == "provider_insufficient_quota"
+
+
 def test_live_mode_requires_openai_api_key_before_first_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

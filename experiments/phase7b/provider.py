@@ -21,6 +21,11 @@ _RATE_LIMIT_CLASS_NAMES = (
     "ratelimit",
     "rate_limit",
 )
+_QUOTA_CLASS_NAMES = (
+    "insufficient_quota",
+    "quota",
+    "credit",
+)
 _SERVER_ERROR_CLASS_NAMES = (
     "servererror",
     "internalservererror",
@@ -232,6 +237,8 @@ def invoke_response(
 def classify_provider_error(error: BaseException) -> str:
     status_code = _error_status_code(error)
     if status_code == 429:
+        if _is_insufficient_quota_error(error):
+            return "provider_insufficient_quota"
         return "rate_limit"
     if status_code is not None and 500 <= status_code <= 599:
         return "provider_5xx"
@@ -247,10 +254,30 @@ def classify_provider_error(error: BaseException) -> str:
     if any(fragment in lowered_name for fragment in _SERVER_ERROR_CLASS_NAMES):
         return "provider_5xx"
     if "429" in lowered_message:
+        if _is_insufficient_quota_error(error):
+            return "provider_insufficient_quota"
         return "rate_limit"
     if re.search(r"\b5\d{2}\b", lowered_message):
         return "provider_5xx"
     return "provider_error"
+
+
+def _is_insufficient_quota_error(error: BaseException) -> bool:
+    lowered_name = type(error).__name__.lower()
+    lowered_message = str(error).lower()
+    if "insufficient_quota" in lowered_name or "insufficient_quota" in lowered_message:
+        return True
+    if any(fragment in lowered_name for fragment in _QUOTA_CLASS_NAMES):
+        return True
+    if "current quota" in lowered_message:
+        return True
+    if "consumed all your credits" in lowered_message:
+        return True
+    if "maximum monthly spend" in lowered_message:
+        return True
+    if "monthly budget is set too low" in lowered_message:
+        return True
+    return False
 
 
 def _error_status_code(error: BaseException) -> int | None:
